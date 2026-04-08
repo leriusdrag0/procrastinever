@@ -246,7 +246,7 @@
 
     <div id="editModal" class="modal">
         <div class="modal-content">
-            <h3>Configurar Tarea de Rutina</h3>
+            <h3>Configurar Tarea</h3>
             <div class="emoji-picker" id="emojiPicker"></div>
             
             <label style="font-size:0.8rem;">Categoría:</label>
@@ -280,7 +280,7 @@
             <h3>¿Qué lograste hacer?</h3>
             <div class="emoji-picker" id="logEmojiPicker"></div>
             
-            <label style="font-size:0.8rem;">Categoría de la actividad:</label>
+            <label style="font-size:0.8rem;">Categoría:</label>
             <select id="logCategory">
                 <option value="work">💼 Trabajo</option>
                 <option value="study">📚 Estudio</option>
@@ -306,29 +306,27 @@
     </div>
 
     <script>
-        // --- ESTADO Y DATOS ---
-        let userSchedule = JSON.parse(localStorage.getItem('userSchedule')) || [];
-        let historyData = JSON.parse(localStorage.getItem('procrastiHistory')) || {};
-        let totalXP = parseFloat(localStorage.getItem('totalXP')) || 0;
-        let unlockedTrophies = JSON.parse(localStorage.getItem('procrastiTrophies')) || {};
+        // --- ADAPTACIÓN ESTRICTA PARA SURFACE RT (ES5) ---
         
-        // --- NUEVO: Manejo histórico de Registros ---
-        let allLogs = JSON.parse(localStorage.getItem('procrastiAllLogs')) || {};
-        let currentLogDate = new Date().toISOString().split('T')[0];
+        var userSchedule = JSON.parse(localStorage.getItem('userSchedule')) || [];
+        var historyData = JSON.parse(localStorage.getItem('procrastiHistory')) || {};
+        var totalXP = parseFloat(localStorage.getItem('totalXP')) || 0;
+        var unlockedTrophies = JSON.parse(localStorage.getItem('procrastiTrophies')) || {};
+        
+        var allLogs = JSON.parse(localStorage.getItem('procrastiAllLogs')) || {};
+        var currentLogDate = new Date().toISOString().split('T')[0];
 
-        // Migración retroactiva segura (Si tenías registros de antes sin el nuevo formato de fechas)
-        let oldDailyLogs = JSON.parse(localStorage.getItem('procrastiDailyLogs'));
+        var oldDailyLogs = JSON.parse(localStorage.getItem('procrastiDailyLogs'));
         if (oldDailyLogs && Array.isArray(oldDailyLogs) && oldDailyLogs.length > 0 && !allLogs[currentLogDate]) {
             allLogs[currentLogDate] = oldDailyLogs;
             localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
             localStorage.removeItem('procrastiDailyLogs');
         }
-        let dailyLogs = allLogs[currentLogDate] || [];
+        var dailyLogs = allLogs[currentLogDate] || [];
 
-        // Inicializar el selector de fecha con la fecha de hoy
         document.getElementById('logDateSelector').value = currentLogDate;
 
-        const trophyData = [
+        var trophyData = [
             { pts: 1, icon: '🥉', name: 'Primer Paso' },
             { pts: 30, icon: '🥈', name: 'En Racha' },
             { pts: 50, icon: '🥇', name: 'A Mitad de Camino' },
@@ -341,24 +339,29 @@
             { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
         ];
         
-        const emojis = [
+        var emojis = [
             '📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', 
             '💧', '💤', '💪', '🛒', '📝', '🧠', '🛠️', '🌱', '🎵', '🏆',
             '🧪', '🍿', '🧗', '🛹', '🧶', '📸', '🗺️', '🧸', '🔋', '🛸',
             '🪐', '🎭', '🥊', '🍣', '🍦', '🚲', '⏰', '🔋', '💎', '🔥'
         ];
         
-        let selectedEmoji = '📝';
-        let logSelectedEmoji = '📝';
-        let editingIndex = -1;
-        let logEditingIndex = -1;
-        let chartInstance = null;
-        let pieChartInstance = null;
+        var selectedEmoji = '📝';
+        var logSelectedEmoji = '📝';
+        var editingIndex = -1;
+        var logEditingIndex = -1;
+        var chartInstance = null;
+        var pieChartInstance = null;
 
-        // --- SISTEMA DE TEMAS ---
-        const themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
-        const themeIcons = { 'light': '🍂', 'dark': '🌙', 'winter': '❄️', 'spring': '🌸', 'summer': '🏖️', 'purple': '🔮' };
-        let currentTheme = localStorage.getItem('procrastiTheme') || 'light';
+        var themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
+        var themeIcons = { 'light': '🍂', 'dark': '🌙', 'winter': '❄️', 'spring': '🌸', 'summer': '🏖️', 'purple': '🔮' };
+        var currentTheme = localStorage.getItem('procrastiTheme') || 'light';
+
+        // Helper para formatos de hora (Reemplaza funciones modernas)
+        function pad2(num) {
+            var s = "00" + num;
+            return s.substr(s.length - 2);
+        }
 
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
@@ -372,57 +375,55 @@
         }
 
         function toggleTheme() {
-            let currentIndex = themes.indexOf(currentTheme);
-            let nextIndex = (currentIndex + 1) % themes.length;
+            var currentIndex = themes.indexOf(currentTheme);
+            var nextIndex = (currentIndex + 1) % themes.length;
             applyTheme(themes[nextIndex]);
         }
 
-        // --- SISTEMA DE NIVELES ---
         function updateLevelUI() {
-            const level = Math.floor(totalXP / 50) + 1;
-            const xpInLevel = totalXP % 50;
-            const progress = (xpInLevel / 50) * 100;
-            let rank = "🐣 Novato del Enfoque";
+            var level = Math.floor(totalXP / 50) + 1;
+            var xpInLevel = totalXP % 50;
+            var progress = (xpInLevel / 50) * 100;
+            var rank = "🐣 Novato del Enfoque";
             if(level >= 5) rank = "⚔️ Guerrero";
             if(level >= 10) rank = "⚡ Maestro";
             if(level >= 20) rank = "🔥 Titán";
             if(level >= 40) rank = "👑 Leyenda";
-            document.getElementById('levelBadge').textContent = `Nivel ${level}`;
+            document.getElementById('levelBadge').textContent = 'Nivel ' + level;
             document.getElementById('rankText').textContent = rank;
-            document.getElementById('xpBar').style.width = `${progress}%`;
+            document.getElementById('xpBar').style.width = progress + '%';
             localStorage.setItem('totalXP', totalXP);
         }
 
-        // --- RUTINA (Suma puntos a la barra global) ---
         function renderSchedule() {
-            const container = document.getElementById('scheduleContainer');
+            var container = document.getElementById('scheduleContainer');
             container.innerHTML = '';
-            userSchedule.sort((a,b) => a.time.localeCompare(b.time));
+            userSchedule.sort(function(a,b) { return a.time.localeCompare(b.time); });
 
-            const now = new Date();
-            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            var now = new Date();
+            var currentTime = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
 
-            userSchedule.forEach((item, index) => {
-                const catClass = `cat-border-${item.category || 'work'}`;
-                const tagClass = `tag-${item.category || 'work'}`;
-                const isCurrent = (item.end && currentTime >= item.time && currentTime <= item.end) && !item.done;
+            userSchedule.forEach(function(item, index) {
+                var catClass = 'cat-border-' + (item.category || 'work');
+                var tagClass = 'tag-' + (item.category || 'work');
+                var isCurrent = (item.end && currentTime >= item.time && currentTime <= item.end) && !item.done;
+                var itemClasses = 'schedule-item ' + (item.done ? 'task-done ' : '') + catClass + ' ' + (isCurrent ? 'current-task' : '');
                 
-                const div = document.createElement('div');
-                div.className = `schedule-item ${item.done ? 'task-done' : ''} ${catClass} ${isCurrent ? 'current-task' : ''}`;
-                div.innerHTML = `
-                    <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">
-                            ${item.time} - ${item.end} • 🪙 ${item.points} pts
-                            <span class="category-tag ${tagClass}">${item.category || 'work'}</span>
-                        </div>
-                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
-                    </div>
-                    <div class="action-icons">
-                        <button class="btn" style="padding:5px 10px; background:var(--color-surface); color:var(--color-text-primary);" onclick="toggleTask(${index})">✅</button>
-                        <span onclick="openEditor(${index})">✏️</span>
-                        <span onclick="deleteActivity(${index})">🗑️</span>
-                    </div>
-                `;
+                var div = document.createElement('div');
+                div.className = itemClasses;
+                div.innerHTML = 
+                    '<div>' +
+                        '<div style="font-size:0.7rem; color:var(--color-text-secondary);">' +
+                            item.time + ' - ' + item.end + ' • 🪙 ' + item.points + ' pts' +
+                            '<span class="category-tag ' + tagClass + '">' + (item.category || 'work') + '</span>' +
+                        '</div>' +
+                        '<div style="font-weight:bold;">' + item.emoji + ' ' + item.activity + '</div>' +
+                    '</div>' +
+                    '<div class="action-icons">' +
+                        '<button class="btn" style="padding:5px 10px; background:var(--color-surface); color:var(--color-text-primary);" onclick="toggleTask(' + index + ')">✅</button>' +
+                        '<span onclick="openEditor(' + index + ')">✏️</span>' +
+                        '<span onclick="deleteActivity(' + index + ')">🗑️</span>' +
+                    '</div>';
                 container.appendChild(div);
             });
             updateScore();
@@ -430,8 +431,8 @@
         }
 
         function toggleTask(index) {
-            const task = userSchedule[index];
-            const pts = parseFloat(task.points) || 0;
+            var task = userSchedule[index];
+            var pts = parseFloat(task.points) || 0;
             if (!task.done) { totalXP += pts; triggerConfetti(); playSound(800, 0.2); }
             else { totalXP = Math.max(0, totalXP - pts); }
             task.done = !task.done;
@@ -439,24 +440,22 @@
         }
 
         function updateScore() {
-            let earned = 0, total = 0;
-            // Sólo la rutina afecta el historial de puntos general
-            userSchedule.forEach(t => { 
+            var earned = 0, total = 0;
+            userSchedule.forEach(function(t) { 
                 total += parseFloat(t.points); 
                 if(t.done) earned += parseFloat(t.points); 
             });
             
-            document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
+            document.getElementById('scoreDisplay').textContent = earned.toFixed(1) + ' / 10';
             document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
             
-            const today = new Date().toISOString().split('T')[0];
-            historyData[today] = { earned, total };
+            var today = new Date().toISOString().split('T')[0];
+            historyData[today] = { earned: earned, total: total };
             localStorage.setItem('procrastiHistory', JSON.stringify(historyData));
 
             checkTrophies(earned);
         }
 
-        // --- SISTEMA DE NAVEGACIÓN DE FECHAS EN EL REGISTRO ---
         function selectLogDate(dateStr) {
             if (!dateStr) return;
             currentLogDate = dateStr;
@@ -466,39 +465,36 @@
         }
 
         function changeLogDate(offset) {
-            let d = new Date(currentLogDate + "T12:00:00"); // Añadir horas previene problemas de zona horaria
+            var d = new Date(currentLogDate + "T12:00:00");
             d.setDate(d.getDate() + offset);
             selectLogDate(d.toISOString().split('T')[0]);
         }
 
-        // --- REGISTRO REAL (Ahora se guarda en el diccionario de fechas) ---
         function renderLog() {
-            const container = document.getElementById('logContainer');
+            var container = document.getElementById('logContainer');
             container.innerHTML = '';
             
-            dailyLogs.forEach((item, index) => {
-                const catClass = `cat-border-${item.category || 'work'}`;
-                const tagClass = `tag-${item.category || 'work'}`;
+            dailyLogs.forEach(function(item, index) {
+                var catClass = 'cat-border-' + (item.category || 'work');
+                var tagClass = 'tag-' + (item.category || 'work');
                 
-                const div = document.createElement('div');
-                div.className = `schedule-item ${catClass}`;
-                div.innerHTML = `
-                    <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">
-                            ${item.time}
-                            <span class="category-tag ${tagClass}">${item.category || 'work'}</span>
-                        </div>
-                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
-                    </div>
-                    <div class="action-icons">
-                        <span onclick="openLogEditor(${index})">✏️</span>
-                        <span onclick="deleteLogActivity(${index})">🗑️</span>
-                    </div>
-                `;
+                var div = document.createElement('div');
+                div.className = 'schedule-item ' + catClass;
+                div.innerHTML = 
+                    '<div>' +
+                        '<div style="font-size:0.7rem; color:var(--color-text-secondary);">' +
+                            item.time + ' ' +
+                            '<span class="category-tag ' + tagClass + '">' + (item.category || 'work') + '</span>' +
+                        '</div>' +
+                        '<div style="font-weight:bold;">' + item.emoji + ' ' + item.activity + '</div>' +
+                    '</div>' +
+                    '<div class="action-icons">' +
+                        '<span onclick="openLogEditor(' + index + ')">✏️</span>' +
+                        '<span onclick="deleteLogActivity(' + index + ')">🗑️</span>' +
+                    '</div>';
                 container.appendChild(div);
             });
 
-            // Guardamos el arreglo actual en la llave de la fecha actual
             allLogs[currentLogDate] = dailyLogs;
             localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
 
@@ -507,14 +503,13 @@
             }
         }
 
-        // --- TROFEOS ---
         function checkTrophies(earnedPts) {
-            let newlyUnlocked = false;
-            trophyData.forEach(t => {
+            var newlyUnlocked = false;
+            trophyData.forEach(function(t) {
                 if (earnedPts >= t.pts && !unlockedTrophies[t.pts]) {
                     unlockedTrophies[t.pts] = true;
                     newlyUnlocked = true;
-                    setTimeout(() => alert(`🏆 ¡Desbloqueaste un nuevo trofeo: ${t.name}!\nRevisa tu Vitrina.`), 400);
+                    setTimeout(function() { alert('🏆 ¡Desbloqueaste un nuevo trofeo: ' + t.name + '!\nRevisa tu Vitrina.'); }, 400);
                 }
             });
             
@@ -526,28 +521,28 @@
         }
 
         function renderCollection() {
-            const container = document.getElementById('trophyCase');
+            var container = document.getElementById('trophyCase');
             if(!container) return;
             container.innerHTML = '';
             
-            trophyData.forEach(t => {
-                const isUnlocked = unlockedTrophies[t.pts];
-                const div = document.createElement('div');
-                div.className = `trophy-slot ${isUnlocked ? 'unlocked' : ''}`;
-                div.innerHTML = `
-                    <div class="trophy-icon">${t.icon}</div>
-                    <div class="trophy-title">${isUnlocked ? t.name : 'Bloqueado'}</div>
-                    <div class="trophy-req">${t.pts} pts</div>
-                `;
+            trophyData.forEach(function(t) {
+                var isUnlocked = unlockedTrophies[t.pts];
+                var div = document.createElement('div');
+                div.className = 'trophy-slot ' + (isUnlocked ? 'unlocked' : '');
+                div.innerHTML = 
+                    '<div class="trophy-icon">' + t.icon + '</div>' +
+                    '<div class="trophy-title">' + (isUnlocked ? t.name : 'Bloqueado') + '</div>' +
+                    '<div class="trophy-req">' + t.pts + ' pts</div>';
                 container.appendChild(div);
             });
         }
 
-        // --- EDITOR RUTINA ---
-        function openEditor(index = -1) {
-            editingIndex = index; document.getElementById('editModal').style.display = 'flex';
+        function openEditor(index) {
+            if (index === undefined) index = -1;
+            editingIndex = index; 
+            document.getElementById('editModal').style.display = 'flex';
             if(index >= 0) {
-                const t = userSchedule[index];
+                var t = userSchedule[index];
                 document.getElementById('editActivity').value = t.activity;
                 document.getElementById('editPoints').value = t.points;
                 document.getElementById('editStart').value = t.time;
@@ -557,29 +552,36 @@
             } else { document.getElementById('editActivity').value = ''; }
             updateEmojiSelection('edit');
         }
+        
         function closeEditor() { document.getElementById('editModal').style.display = 'none'; }
         
         function saveActivity() {
-            const name = document.getElementById('editActivity').value;
-            const start = document.getElementById('editStart').value;
-            const end = document.getElementById('editEnd').value;
-            const cat = document.getElementById('editCategory').value;
-            const pts = parseFloat(document.getElementById('editPoints').value) || 0;
+            var name = document.getElementById('editActivity').value;
+            var start = document.getElementById('editStart').value;
+            var end = document.getElementById('editEnd').value;
+            var cat = document.getElementById('editCategory').value;
+            var pts = parseFloat(document.getElementById('editPoints').value) || 0;
             if(!name || !start) return;
 
-            const obj = { activity: name, time: start, end: end, emoji: selectedEmoji, points: pts, category: cat, done: false };
-            if(editingIndex >= 0) userSchedule[editingIndex] = {...obj, done: userSchedule[editingIndex].done};
-            else userSchedule.push(obj);
+            var obj = { activity: name, time: start, end: end, emoji: selectedEmoji, points: pts, category: cat, done: false };
+            if(editingIndex >= 0) {
+                obj.done = userSchedule[editingIndex].done;
+                userSchedule[editingIndex] = obj;
+            } else {
+                userSchedule.push(obj);
+            }
             renderSchedule(); closeEditor();
         }
+        
         function deleteActivity(index) { userSchedule.splice(index, 1); renderSchedule(); }
-        function resetDay() { userSchedule.forEach(t => t.done = false); renderSchedule(); }
+        function resetDay() { userSchedule.forEach(function(t) { t.done = false; }); renderSchedule(); }
 
-        // --- EDITOR DE REGISTRO REAL ---
-        function openLogEditor(index = -1) {
-            logEditingIndex = index; document.getElementById('logModal').style.display = 'flex';
+        function openLogEditor(index) {
+            if (index === undefined) index = -1;
+            logEditingIndex = index; 
+            document.getElementById('logModal').style.display = 'flex';
             if(index >= 0) {
-                const t = dailyLogs[index];
+                var t = dailyLogs[index];
                 document.getElementById('logActivity').value = t.activity;
                 document.getElementById('logPoints').value = t.points;
                 document.getElementById('logTime').value = t.time;
@@ -587,21 +589,21 @@
                 logSelectedEmoji = t.emoji;
             } else { 
                 document.getElementById('logActivity').value = ''; 
-                const now = new Date();
-                document.getElementById('logTime').value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                var now = new Date();
+                document.getElementById('logTime').value = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
             }
             updateEmojiSelection('log');
         }
         function closeLogEditor() { document.getElementById('logModal').style.display = 'none'; }
 
         function saveLogActivity() {
-            const name = document.getElementById('logActivity').value;
-            const start = document.getElementById('logTime').value;
-            const cat = document.getElementById('logCategory').value;
-            const pts = parseFloat(document.getElementById('logPoints').value) || 0;
+            var name = document.getElementById('logActivity').value;
+            var start = document.getElementById('logTime').value;
+            var cat = document.getElementById('logCategory').value;
+            var pts = parseFloat(document.getElementById('logPoints').value) || 0;
             if(!name || !start) return;
 
-            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: pts, category: cat };
+            var obj = { activity: name, time: start, emoji: logSelectedEmoji, points: pts, category: cat };
             if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
             else dailyLogs.push(obj);
             
@@ -611,9 +613,8 @@
         function deleteLogActivity(index) { dailyLogs.splice(index, 1); renderLog(); }
 
 
-        // --- POMODORO (ANTI-THROTTLING, NOTIFICACIONES Y AUTO-REGISTRO) ---
-        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
-        let expectedEndTime = 0;
+        var timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
+        var expectedEndTime = 0;
 
         function savePomoSettings() {
             localStorage.setItem('pomoStudy', document.getElementById('studyMin').value);
@@ -622,23 +623,7 @@
             if(!isRunning) resetTimer();
         }
 
-        function requestNotificationPermission() {
-            if ("Notification" in window) {
-                if (Notification.permission !== "granted" && Notification.permission !== "denied") {
-                    Notification.requestPermission();
-                }
-            }
-        }
-
-        function sendNotification(title, body) {
-            if ("Notification" in window && Notification.permission === "granted") {
-                new Notification(title, { body: body });
-            }
-        }
-
         function toggleTimer() {
-            requestNotificationPermission();
-
             if (isRunning) { 
                 clearInterval(timerId); 
                 isRunning = false; 
@@ -651,7 +636,7 @@
                 
                 expectedEndTime = Date.now() + (timeLeft * 1000);
                 
-                timerId = setInterval(() => { 
+                timerId = setInterval(function() { 
                     timeLeft = Math.round((expectedEndTime - Date.now()) / 1000);
                     
                     if (timeLeft <= 0) { 
@@ -668,18 +653,20 @@
 
         function handlePhaseEnd() {
             clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
-            const total = parseInt(document.getElementById('totalCycles').value);
+            var total = parseInt(document.getElementById('totalCycles').value);
             
             if (currentMode === 'study') {
+                var now = new Date();
+                var currentTime = pad2(now.getHours()) + ':' + pad2(now.getMinutes());
                 
-                // AUTO-REGISTRO DEL POMODORO
-                const now = new Date();
-                const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-                
-                const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                // Encontrar tarea activa
+                var activeTaskArr = userSchedule.filter(function(t) {
+                    return t.time && t.end && currentTime >= t.time && currentTime <= t.end;
+                });
+                var activeTask = activeTaskArr.length > 0 ? activeTaskArr[0] : null;
                 
                 if (activeTask) {
-                    const todayStr = new Date().toISOString().split('T')[0];
+                    var todayStr = new Date().toISOString().split('T')[0];
                     if (!allLogs[todayStr]) allLogs[todayStr] = [];
                     
                     allLogs[todayStr].push({
@@ -692,29 +679,24 @@
                     
                     localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
                     
-                    // Si estamos viendo la pestaña del día de hoy, actualizamos en vivo
                     if (currentLogDate === todayStr) {
                         dailyLogs = allLogs[todayStr];
                         renderLog();
                     }
-                    sendNotification("📝 Auto-Registro", `Se agregó "${activeTask.activity}" a tus registros del día.`);
                 }
 
                 if (currentCycle >= total) { 
-                    sendNotification("🏆 ¡Pomodoro completado!", "Terminaste todos los ciclos. ¡Excelente trabajo!");
-                    alert("¡Sesión completa!"); 
+                    alert("¡Sesión completa! Excelente trabajo."); 
                     resetTimer(); 
                     return; 
                 }
                 currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "☕ Descanso"; 
                 document.getElementById('pomoCard').classList.add('mode-rest');
-                sendNotification("☕ ¡Tiempo de descanso!", `Tómate un respiro de ${document.getElementById('restMin').value} minutos.`);
             } else {
                 currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "✍️ Estudio"; 
                 document.getElementById('pomoCard').classList.remove('mode-rest');
-                sendNotification("✍️ ¡A enfocarse!", `Inicia el ciclo de estudio ${currentCycle} de ${total}.`);
             }
             renderDots(); toggleTimer();
         }
@@ -733,22 +715,47 @@
             renderDots(); 
         }
 
-        function updateTimerDisplay() { const m = Math.floor(timeLeft/60), s = timeLeft%60; document.getElementById('timerDisplay').textContent = `${m}:${s<10?'0':''}${s}`; }
-        function renderDots() { const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value); c.innerHTML = ''; for(let i=1; i<=tot; i++) { const d = document.createElement('div'); d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`; c.appendChild(d); } document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`; }
-        function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
-        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
+        function updateTimerDisplay() { 
+            var m = Math.floor(timeLeft/60);
+            var s = timeLeft%60; 
+            document.getElementById('timerDisplay').textContent = m + ':' + (s<10?'0':'') + s; 
+        }
+        
+        function renderDots() { 
+            var c = document.getElementById('cycleDots');
+            var tot = parseInt(document.getElementById('totalCycles').value); 
+            c.innerHTML = ''; 
+            for(var i=1; i<=tot; i++) { 
+                var d = document.createElement('div'); 
+                d.className = 'dot ' + (i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')); 
+                c.appendChild(d); 
+            } 
+            document.getElementById('cycleText').textContent = 'Ciclo ' + currentCycle + ' / ' + tot; 
+        }
 
-        // --- SISTEMA DE REINICIO DIARIO ---
+        function playSound(freq, duration) { 
+            var AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if(!AudioCtx) return; 
+            var ctx = new AudioCtx(); 
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain(); 
+            osc.connect(gain); 
+            gain.connect(ctx.destination); 
+            osc.frequency.value = freq; 
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); 
+            osc.start(); 
+            osc.stop(ctx.currentTime + duration); 
+        }
+        function playAlarm() { playSound(523.25, 1); setTimeout(function() { playSound(659.25, 1); }, 200); }
+
         function checkDailyReset() {
-            const today = new Date().toISOString().split('T')[0];
-            const lastDate = localStorage.getItem('procrastiLastDate');
+            var today = new Date().toISOString().split('T')[0];
+            var lastDate = localStorage.getItem('procrastiLastDate');
             
             if (lastDate && lastDate !== today) {
-                // Desmarcar todas las tareas de la rutina
-                userSchedule.forEach(t => t.done = false);
+                userSchedule.forEach(function(t) { t.done = false; });
                 localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
                 
-                // Actualizar la fecha límite y recargar la página limpia
                 localStorage.setItem('procrastiLastDate', today);
                 location.reload(); 
             } else if (!lastDate) {
@@ -759,49 +766,54 @@
         checkDailyReset();
         setInterval(checkDailyReset, 60000);
 
-
-        // --- UTILIDADES ---
         function switchTab(ev, tab) {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            var contents = document.querySelectorAll('.tab-content');
+            for(var i=0; i<contents.length; i++) contents[i].classList.remove('active');
+            
+            var btns = document.querySelectorAll('.tab-btn');
+            for(var j=0; j<btns.length; j++) btns[j].classList.remove('active');
+            
             document.getElementById(tab + 'Tab').classList.add('active');
             ev.target.classList.add('active');
             if(tab === 'history') { renderChart(); renderPieChart(); }
         }
 
-        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
+        function triggerConfetti() { 
+            if(typeof confetti !== 'undefined') {
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); 
+            }
+        }
 
-        // --- GRÁFICAS ---
         function renderChart() {
-            const rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
-            const ctx = document.getElementById('historyChart').getContext('2d');
-            let labels = [], data = [];
+            var rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
+            var ctx = document.getElementById('historyChart').getContext('2d');
+            var labels = [], data = [];
             
             if (rangeType === 7 || rangeType === 30) {
-                for(let i=rangeType-1; i>=0; i--) {
-                    const d = new Date(); d.setDate(d.getDate()-i);
-                    const s = d.toISOString().split('T')[0];
+                for(var i=rangeType-1; i>=0; i--) {
+                    var d = new Date(); d.setDate(d.getDate()-i);
+                    var s = d.toISOString().split('T')[0];
                     labels.push(s.split('-')[2] + '/' + s.split('-')[1]);
                     data.push(historyData[s] ? historyData[s].earned : 0);
                 }
             } else if (rangeType === 90) {
-                for(let w=11; w>=0; w--) {
-                    let weekTotal = 0;
-                    for(let d=0; d<7; d++) {
-                        let date = new Date(); date.setDate(date.getDate() - (w*7 + d));
-                        const s = date.toISOString().split('T')[0];
-                        weekTotal += historyData[s] ? historyData[s].earned : 0;
+                for(var w=11; w>=0; w--) {
+                    var weekTotal = 0;
+                    for(var dd=0; dd<7; dd++) {
+                        var date = new Date(); date.setDate(date.getDate() - (w*7 + dd));
+                        var s2 = date.toISOString().split('T')[0];
+                        weekTotal += historyData[s2] ? historyData[s2].earned : 0;
                     }
                     labels.push('Sem -' + w);
                     data.push(weekTotal);
                 }
             } else if (rangeType === 365) {
-                for(let m=11; m>=0; m--) {
-                    let mDate = new Date(); mDate.setMonth(mDate.getMonth() - m);
-                    let targetYM = mDate.toISOString().slice(0,7);
-                    let monthTotal = 0;
-                    for (let dateStr in historyData) {
-                        if (dateStr.startsWith(targetYM)) monthTotal += historyData[dateStr].earned;
+                for(var m=11; m>=0; m--) {
+                    var mDate = new Date(); mDate.setMonth(mDate.getMonth() - m);
+                    var targetYM = mDate.toISOString().slice(0,7);
+                    var monthTotal = 0;
+                    for (var dateStr in historyData) {
+                        if (dateStr.indexOf(targetYM) === 0) monthTotal += historyData[dateStr].earned;
                     }
                     labels.push(targetYM.split('-')[1]);
                     data.push(monthTotal);
@@ -810,75 +822,78 @@
 
             if(chartInstance) chartInstance.destroy();
             
-            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
-            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim();
+            var styleEl = window.getComputedStyle(document.documentElement);
+            var accentColor = styleEl.getPropertyValue('--color-accent').trim() || '#d97706';
+            var textColor = styleEl.getPropertyValue('--color-text-primary').trim() || '#4a2c0f';
 
             chartInstance = new Chart(ctx, { 
                 type:'bar', 
-                data: { labels, datasets: [{ label: 'Puntos', data, backgroundColor: accentColor, borderRadius: 5 }] },
+                data: { labels: labels, datasets: [{ label: 'Puntos', data: data, backgroundColor: accentColor, borderRadius: 5 }] },
                 options: { scales: { x: { ticks: { color: textColor } }, y: { ticks: { color: textColor } } }, plugins: { legend: { labels: { color: textColor } } } }
             });
         }
 
         function renderPieChart() {
-            const ctxPie = document.getElementById('categoryPieChart').getContext('2d');
-            let catPoints = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
-            let hasData = false;
+            var ctxPie = document.getElementById('categoryPieChart').getContext('2d');
+            var catPoints = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
+            var hasData = false;
 
-            // La gráfica circular responde al selector de fecha de la pestaña Registro
-            dailyLogs.forEach(t => {
+            dailyLogs.forEach(function(t) {
                 catPoints[t.category || 'work'] += parseFloat(t.points) || 0;
                 hasData = true;
             });
 
-            const labels = ['💼 Trabajo', '📚 Estudio', '🍏 Salud', '🎮 Ocio', '🏠 Hogar'];
-            const data = [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores];
-            const bgColors = [
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-work').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-study').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-chores').trim()
+            var labels = ['💼 Trabajo', '📚 Estudio', '🍏 Salud', '🎮 Ocio', '🏠 Hogar'];
+            var data = [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores];
+            
+            var styleEl = window.getComputedStyle(document.documentElement);
+            var bgColors = [
+                styleEl.getPropertyValue('--cat-work').trim() || '#3b82f6',
+                styleEl.getPropertyValue('--cat-study').trim() || '#a855f7',
+                styleEl.getPropertyValue('--cat-health').trim() || '#10b981',
+                styleEl.getPropertyValue('--cat-leisure').trim() || '#f59e0b',
+                styleEl.getPropertyValue('--cat-chores').trim() || '#64748b'
             ];
 
-            const msgEl = document.getElementById('emptyPieMsg');
-            const canvasEl = document.getElementById('categoryPieChart');
+            var msgEl = document.getElementById('emptyPieMsg');
+            var canvasEl = document.getElementById('categoryPieChart');
 
             if (!hasData) { msgEl.style.display = 'block'; canvasEl.style.display = 'none'; return; } 
             else { msgEl.style.display = 'none'; canvasEl.style.display = 'block'; }
 
             if(pieChartInstance) pieChartInstance.destroy();
-            const textColor = getComputedStyle(document.documentElement).getPropertyValue('--color-text-primary').trim();
+            var textColor = styleEl.getPropertyValue('--color-text-primary').trim() || '#4a2c0f';
+            var cardColor = styleEl.getPropertyValue('--color-card').trim() || '#fffbf5';
 
             pieChartInstance = new Chart(ctxPie, { 
                 type: 'doughnut', 
-                data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 2, borderColor: getComputedStyle(document.documentElement).getPropertyValue('--color-card').trim() }] },
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, borderWidth: 2, borderColor: cardColor }] },
                 options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textColor, padding: 15, font: { size: 11 } } } }, cutout: '60%' }
             });
         }
 
-        // --- SISTEMA DE EXPORTACIÓN (Actualizado para el nuevo allLogs) ---
         function exportData() {
-            const data = { userSchedule, allLogs, historyData, totalXP, unlockedTrophies };
-            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `ProcrastiNever_Backup.json`; a.click();
+            var data = { userSchedule: userSchedule, allLogs: allLogs, historyData: historyData, totalXP: totalXP, unlockedTrophies: unlockedTrophies };
+            var blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+            var a = document.createElement('a'); a.href = window.URL.createObjectURL(blob);
+            a.download = 'ProcrastiNever_Backup.json'; a.click();
         }
 
         function importData(event) {
-            const file = event.target.files[0]; const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = JSON.parse(e.target.result);
+            var file = event.target.files[0]; 
+            var reader = new FileReader();
+            reader.onload = function(e) {
+                var data = JSON.parse(e.target.result);
                 userSchedule = data.userSchedule || []; 
                 allLogs = data.allLogs || {};
                 
-                // Mantenimiento de compatibilidad con backups antiguos
                 if (data.dailyLogs && Object.keys(allLogs).length === 0) {
-                    const today = new Date().toISOString().split('T')[0];
+                    var today = new Date().toISOString().split('T')[0];
                     allLogs[today] = data.dailyLogs;
                 }
                 
-                totalXP = data.totalXP || 0; unlockedTrophies = data.unlockedTrophies || {};
+                totalXP = data.totalXP || 0; 
+                unlockedTrophies = data.unlockedTrophies || {};
                 
                 localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
                 localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
@@ -889,35 +904,56 @@
         }
 
         function updateEmojiSelection(type) {
-            if(type === 'edit') document.querySelectorAll('#emojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === selectedEmoji));
-            if(type === 'log') document.querySelectorAll('#logEmojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === logSelectedEmoji));
+            if(type === 'edit') {
+                var opts1 = document.querySelectorAll('#emojiPicker .emoji-option');
+                for(var i=0; i<opts1.length; i++) {
+                    if(opts1[i].textContent === selectedEmoji) opts1[i].classList.add('selected');
+                    else opts1[i].classList.remove('selected');
+                }
+            }
+            if(type === 'log') {
+                var opts2 = document.querySelectorAll('#logEmojiPicker .emoji-option');
+                for(var j=0; j<opts2.length; j++) {
+                    if(opts2[j].textContent === logSelectedEmoji) opts2[j].classList.add('selected');
+                    else opts2[j].classList.remove('selected');
+                }
+            }
         }
 
         function renderEmojiPickers() {
-            const picker1 = document.getElementById('emojiPicker');
-            const picker2 = document.getElementById('logEmojiPicker');
-            emojis.forEach(e => {
-                const s1 = document.createElement('span'); s1.className='emoji-option'; s1.textContent = e;
-                s1.onclick = () => { selectedEmoji = e; updateEmojiSelection('edit'); }; picker1.appendChild(s1);
+            var picker1 = document.getElementById('emojiPicker');
+            var picker2 = document.getElementById('logEmojiPicker');
+            emojis.forEach(function(e) {
+                var s1 = document.createElement('span'); s1.className='emoji-option'; s1.textContent = e;
+                s1.onclick = function() { selectedEmoji = e; updateEmojiSelection('edit'); }; picker1.appendChild(s1);
                 
-                const s2 = document.createElement('span'); s2.className='emoji-option'; s2.textContent = e;
-                s2.onclick = () => { logSelectedEmoji = e; updateEmojiSelection('log'); }; picker2.appendChild(s2);
+                var s2 = document.createElement('span'); s2.className='emoji-option'; s2.textContent = e;
+                s2.onclick = function() { logSelectedEmoji = e; updateEmojiSelection('log'); }; picker2.appendChild(s2);
             });
         }
 
-        function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        function updateClock() { 
+            var now = new Date(); 
+            var hrs = pad2(now.getHours());
+            var mins = pad2(now.getMinutes());
+            document.getElementById('miniClock').textContent = hrs + ':' + mins; 
+        }
+        
         setInterval(updateClock, 1000); updateClock();
-        setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
+        setInterval(function() { 
+            if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); 
+        }, 60000);
 
-        // Inicialización
-        applyTheme(currentTheme);
-        updateLevelUI();
-        renderEmojiPickers();
-        renderCollection(); 
-        renderSchedule();
-        renderLog();
-        resetTimer();
+        // Inicialización nativa
+        window.onload = function() {
+            applyTheme(currentTheme);
+            updateLevelUI();
+            renderEmojiPickers();
+            renderCollection(); 
+            renderSchedule();
+            renderLog();
+            resetTimer();
+        };
     </script>
 </body>
 </html>
-
