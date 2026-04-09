@@ -322,7 +322,15 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const userDocRef = doc(db, "userData", "mi_cuenta");
+
+		// --- CONFIGURACIÓN DE USUARIOS ---
+        const params = new URLSearchParams(window.location.search);
+        
+        // Ahora, si entras normal, el ID será 'Invitado'
+        const userId = params.get('user') || 'Invitado'; 
+        
+        const userDocRef = doc(db, "userData", userId);
+        console.log("Sesión activa para:", userId);
 
         // --- ESTADO Y DATOS ---
         let userSchedule = JSON.parse(localStorage.getItem('userSchedule')) || [];
