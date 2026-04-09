@@ -785,7 +785,7 @@
             window.toggleTimer(); 
         }
 
-        window.resetTimer = () => { 
+        window.resetTimer = (isAppLoading = false) => { 
             clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; 
             document.body.classList.remove('deep-focus'); 
             timeLeft = document.getElementById('studyMin').value * 60; 
@@ -793,7 +793,11 @@
             document.getElementById('pomoCard').classList.remove('mode-rest'); 
             document.getElementById('startBtn').textContent = "▶️ Empezar"; 
             updateTimerDisplay(); renderDots(); 
-            syncToCloud(); 
+            
+            // Solo sincroniza si el usuario hizo clic. Si la app está cargando, se queda callada.
+            if (!isAppLoading) {
+                syncToCloud(); 
+            }; 
         };
 
         function updateTimerDisplay() { const m = Math.floor(timeLeft/60), s = timeLeft%60; document.getElementById('timerDisplay').textContent = `${m}:${s<10?'0':''}${s}`; }
@@ -891,7 +895,7 @@
         renderCollection(); 
         renderSchedule();
         renderLog();
-        window.resetTimer();
+        window.resetTimer(true);
         
         // Saludo personalizado
         const greetingElement = document.getElementById('welcomeMessage');
