@@ -320,8 +320,27 @@
             appId: "1:528915845360:web:02ce4ca65c66d72ae57235"
         };
 
-        const app = initializeApp(firebaseConfig);
+       const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+
+        // --- NUEVO: PERMISOS Y SERVICE WORKER ---
+        if ("Notification" in window) {
+            Notification.requestPermission();
+        }
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                console.log("Service Worker registrado correctamente");
+            });
+        }
+
+        function sendNotification(title, message) {
+            if (Notification.permission === "granted") {
+                new Notification(title, { body: message, icon: 'logo.png' });
+                if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+            }
+        }
+        // ---------------------------------------
 
 		// --- CONFIGURACIÓN DE USUARIOS ---
         const params = new URLSearchParams(window.location.search);
@@ -657,28 +676,54 @@
         };
 
         function handlePhaseEnd() {
-            clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
+            clearInterval(timerId); 
+            isRunning = false; 
+            document.body.classList.remove('deep-focus');
             const total = parseInt(document.getElementById('totalCycles').value);
+            
             if (currentMode === 'study') {
+                // Notificación de fin de estudio
+                sendNotification("¡Tiempo cumplido!", "Es hora de un descanso ☕");
+                
                 const now = new Date();
                 const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                
                 if (activeTask) {
                     const todayStr = new Date().toISOString().split('T')[0];
                     if (!allLogs[todayStr]) allLogs[todayStr] = [];
-                    allLogs[todayStr].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                    allLogs[todayStr].push({ 
+                        activity: activeTask.activity + " (Pomo)", 
+                        time: currentTime, 
+                        emoji: activeTask.emoji, 
+                        points: activeTask.points, 
+                        category: activeTask.category 
+                    });
                     syncToCloud();
                 }
-                if (currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
-                currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
+
+                if (currentCycle >= total) { 
+                    alert("¡Sesión completa!"); 
+                    window.resetTimer(); 
+                    return; 
+                }
+                
+                currentMode = 'rest'; 
+                timeLeft = document.getElementById('restMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "☕ Descanso"; 
                 document.getElementById('pomoCard').classList.add('mode-rest');
             } else {
-                currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
+                // Notificación de fin de descanso
+                sendNotification("¡A trabajar!", "El descanso terminó, vuelve al enfoque ✍️");
+                
+                currentMode = 'study'; 
+                currentCycle++; 
+                timeLeft = document.getElementById('studyMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "✍️ Estudio"; 
                 document.getElementById('pomoCard').classList.remove('mode-rest');
             }
-            renderDots(); window.toggleTimer();
+            renderDots(); 
+            window.toggleTimer();
         }
 
         window.resetTimer = () => { 
