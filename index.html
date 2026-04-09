@@ -342,9 +342,19 @@
             }
         }
 
-		// --- CONFIGURACIÓN DE USUARIOS ---
+// --- CONFIGURACIÓN DE USUARIOS CON PERSISTENCIA ---
         const params = new URLSearchParams(window.location.search);
-        const userId = params.get('user') || 'Invitado'; 
+        let userId = params.get('user');
+
+        // 1. Si entramos por URL con ?user=..., lo guardamos
+        if (userId) {
+            localStorage.setItem('procrastiActiveUser', userId);
+        } else {
+            // 2. Si no hay parámetro (como al abrir desde el escritorio), 
+            // intentamos recuperar el último usuario guardado.
+            userId = localStorage.getItem('procrastiActiveUser') || 'Invitado';
+        }
+
         const userDocRef = doc(db, "userData", userId);
         console.log("Sesión activa para:", userId);
 
