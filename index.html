@@ -153,6 +153,8 @@
         <div class="rank-text" id="rankText">🐣 Novato</div>
         <div class="xp-container"><div id="xpBar" class="xp-bar"></div></div>
         <h1>🎴 ProcrastiNever</h1>
+        <div id="welcomeMessage" style="font-size:0.9rem; margin-top:5px; opacity:0.8; font-style: italic;"></div>
+        
         <div class="subtitle">Coleccionista de hábitos</div>
         <div class="score-display" id="scoreDisplay">0 / 10</div>
         <div class="progress-container"><div id="progressBar" class="progress-bar"></div></div>
@@ -307,7 +309,6 @@
     </div>
 
 	<script type="module">
-        // 1. INTEGRACIÓN DE FIREBASE (MAGIA DE SINCRONIZACIÓN)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -320,10 +321,10 @@
             appId: "1:528915845360:web:02ce4ca65c66d72ae57235"
         };
 
-       const app = initializeApp(firebaseConfig);
+        const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- NUEVO: PERMISOS Y SERVICE WORKER ---
+        // --- PERMISOS Y SERVICE WORKER ---
         if ("Notification" in window) {
             Notification.requestPermission();
         }
@@ -340,14 +341,10 @@
                 if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
             }
         }
-        // ---------------------------------------
 
 		// --- CONFIGURACIÓN DE USUARIOS ---
         const params = new URLSearchParams(window.location.search);
-        
-        // Ahora, si entras normal, el ID será 'Invitado'
         const userId = params.get('user') || 'Invitado'; 
-        
         const userDocRef = doc(db, "userData", userId);
         console.log("Sesión activa para:", userId);
 
@@ -361,12 +358,22 @@
         let currentLogDate = new Date().toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
-        // FUNCIÓN PARA SUBIR DATOS A LA NUBE
+        // --- VARIABLES DEL POMODORO GLOBAL ---
+        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, expectedEndTime = 0;
+
+        // FUNCIÓN PARA SUBIR DATOS A LA NUBE (AHORA CON POMO STATE)
         async function syncToCloud() {
             try {
                 const data = {
                     userSchedule, historyData, totalXP, 
                     unlockedTrophies, allLogs, currentTheme,
+                    pomoState: {
+                        expectedEndTime: expectedEndTime,
+                        isRunning: isRunning,
+                        currentMode: currentMode,
+                        currentCycle: currentCycle,
+                        timeLeft: timeLeft
+                    },
                     lastUpdated: Date.now()
                 };
                 await setDoc(userDocRef, data);
@@ -374,29 +381,61 @@
             } catch (e) { console.error("Error al sincronizar:", e); }
         }
 
-        // ESCUCHA DE CAMBIOS EN TIEMPO REAL (WINDOWS 11 <-> ANDROID)
+        // ESCUCHA DE CAMBIOS EN TIEMPO REAL
         onSnapshot(userDocRef, (doc) => {
             if (doc.exists()) {
                 const cloud = doc.data();
-                // Actualizamos variables locales si los datos de la nube son nuevos
                 userSchedule = cloud.userSchedule || [];
                 historyData = cloud.historyData || {};
                 totalXP = cloud.totalXP || 0;
                 unlockedTrophies = cloud.unlockedTrophies || {};
                 allLogs = cloud.allLogs || {};
                 
-                // Guardar en LocalStorage para respaldo offline
+                // --- SINCRONIZACIÓN INTELIGENTE DE POMODORO ---
+                if (cloud.pomoState) {
+                    const pState = cloud.pomoState;
+                    currentMode = pState.currentMode;
+                    currentCycle = pState.currentCycle;
+
+                    if (pState.isRunning && !isRunning) {
+                        // Arrancar automáticamente si viene corriendo de la nube
+                        expectedEndTime = pState.expectedEndTime;
+                        const remaining = Math.round((expectedEndTime - Date.now()) / 1000);
+                        if (remaining > 0) {
+                            timeLeft = remaining;
+                            startTimerLogic();
+                        } else {
+                            // El tiempo ya expiró mientras estábamos desconectados
+                            timeLeft = 0;
+                            updateTimerDisplay();
+                            handlePhaseEnd();
+                        }
+                    } else if (!pState.isRunning && isRunning) {
+                        // Pausar si viene pausado desde el otro dispositivo
+                        clearInterval(timerId);
+                        isRunning = false;
+                        timeLeft = pState.timeLeft || timeLeft;
+                        document.getElementById('startBtn').textContent = "▶️ Reanudar";
+                        document.body.classList.remove('deep-focus');
+                        updatePomoUI();
+                    } else if (!isRunning) {
+                        // Mantener sincronía de tiempos en pausa
+                        timeLeft = pState.timeLeft || timeLeft;
+                        updatePomoUI();
+                    }
+                }
+                
                 localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
                 localStorage.setItem('totalXP', totalXP);
                 localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
 
-                // Refrescar toda la interfaz
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule();
                 updateLevelUI();
                 renderLog();
                 renderCollection();
-                console.log("📱 Datos recibidos del otro dispositivo");
+                
+                if(!isRunning) updatePomoUI(); // Evitar parpadeos en pantalla
             }
         });
 
@@ -444,7 +483,7 @@
             let currentIndex = themes.indexOf(currentTheme);
             let nextIndex = (currentIndex + 1) % themes.length;
             applyTheme(themes[nextIndex]);
-            syncToCloud(); // Sincroniza el tema también
+            syncToCloud();
         };
 
         function updateLevelUI() {
@@ -647,9 +686,7 @@
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- POMODORO ---
-        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, expectedEndTime = 0;
-
+        // --- SISTEMA POMODORO REESCRITO (GLOBAL TIMESTAMP) ---
         window.savePomoSettings = () => {
             localStorage.setItem('pomoStudy', document.getElementById('studyMin').value);
             localStorage.setItem('pomoRest', document.getElementById('restMin').value);
@@ -657,23 +694,46 @@
             if(!isRunning) window.resetTimer();
         };
 
+        function startTimerLogic() {
+            isRunning = true;
+            document.getElementById('startBtn').textContent = "⏸️ Pausar";
+            document.body.classList.add('deep-focus');
+            
+            if (timerId) clearInterval(timerId);
+            timerId = setInterval(() => {
+                timeLeft = Math.round((expectedEndTime - Date.now()) / 1000);
+                if (timeLeft <= 0) {
+                    timeLeft = 0;
+                    updateTimerDisplay();
+                    playAlarm();
+                    handlePhaseEnd();
+                } else {
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
         window.toggleTimer = () => {
             if (isRunning) { 
-                clearInterval(timerId); isRunning = false; 
+                clearInterval(timerId); 
+                isRunning = false; 
                 document.getElementById('startBtn').textContent = "▶️ Reanudar"; 
                 document.body.classList.remove('deep-focus'); 
             } else { 
-                isRunning = true; 
-                document.getElementById('startBtn').textContent = "⏸️ Pausar"; 
-                document.body.classList.add('deep-focus'); 
                 expectedEndTime = Date.now() + (timeLeft * 1000);
-                timerId = setInterval(() => { 
-                    timeLeft = Math.round((expectedEndTime - Date.now()) / 1000);
-                    if (timeLeft <= 0) { timeLeft = 0; updateTimerDisplay(); playAlarm(); handlePhaseEnd(); } 
-                    else { updateTimerDisplay(); }
-                }, 1000); 
+                startTimerLogic();
             }
+            syncToCloud(); 
         };
+
+        function updatePomoUI() {
+            const m = Math.floor(timeLeft/60), s = timeLeft%60;
+            document.getElementById('timerDisplay').textContent = `${m}:${s<10?'0':''}${s}`;
+            document.getElementById('pomoStatus').textContent = currentMode === 'study' ? "✍️ Estudio" : "☕ Descanso";
+            if (currentMode === 'rest') document.getElementById('pomoCard').classList.add('mode-rest');
+            else document.getElementById('pomoCard').classList.remove('mode-rest');
+            renderDots();
+        }
 
         function handlePhaseEnd() {
             clearInterval(timerId); 
@@ -682,7 +742,6 @@
             const total = parseInt(document.getElementById('totalCycles').value);
             
             if (currentMode === 'study') {
-                // Notificación de fin de estudio
                 sendNotification("¡Tiempo cumplido!", "Es hora de un descanso ☕");
                 
                 const now = new Date();
@@ -699,11 +758,11 @@
                         points: activeTask.points, 
                         category: activeTask.category 
                     });
-                    syncToCloud();
                 }
 
                 if (currentCycle >= total) { 
                     alert("¡Sesión completa!"); 
+                    syncToCloud();
                     window.resetTimer(); 
                     return; 
                 }
@@ -713,7 +772,6 @@
                 document.getElementById('pomoStatus').textContent = "☕ Descanso"; 
                 document.getElementById('pomoCard').classList.add('mode-rest');
             } else {
-                // Notificación de fin de descanso
                 sendNotification("¡A trabajar!", "El descanso terminó, vuelve al enfoque ✍️");
                 
                 currentMode = 'study'; 
@@ -723,7 +781,8 @@
                 document.getElementById('pomoCard').classList.remove('mode-rest');
             }
             renderDots(); 
-            window.toggleTimer();
+            syncToCloud(); 
+            window.toggleTimer(); 
         }
 
         window.resetTimer = () => { 
@@ -734,6 +793,7 @@
             document.getElementById('pomoCard').classList.remove('mode-rest'); 
             document.getElementById('startBtn').textContent = "▶️ Empezar"; 
             updateTimerDisplay(); renderDots(); 
+            syncToCloud(); 
         };
 
         function updateTimerDisplay() { const m = Math.floor(timeLeft/60), s = timeLeft%60; document.getElementById('timerDisplay').textContent = `${m}:${s<10?'0':''}${s}`; }
@@ -824,7 +884,7 @@
 
         function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
         
-        // INICIALIZACIÓN
+        // INICIALIZACIÓN Y SALUDO
         applyTheme(currentTheme);
         updateLevelUI();
         renderEmojiPickers();
@@ -832,9 +892,21 @@
         renderSchedule();
         renderLog();
         window.resetTimer();
+        
+        // Saludo personalizado
+        const greetingElement = document.getElementById('welcomeMessage');
+        if (greetingElement) {
+            const greetings = [
+                `¡Qué bueno verte otra vez, ${userId}!`,
+                `Bienvenido de nuevo, ${userId}. ¿Qué vamos a lograr hoy?`,
+                `Hola ${userId}, tus trofeos te estaban esperando.`,
+                `Sesión activa: ${userId}. ¡A darle con todo!`
+            ];
+            greetingElement.textContent = greetings[Math.floor(Math.random() * greetings.length)];
+        }
+
         setInterval(updateClock, 1000); updateClock();
         setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
     </script>
-   </body>
+</body>
 </html>
-
