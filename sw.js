@@ -1,12 +1,11 @@
-const CACHE_NAME = 'procrastinever-v1';
+const CACHE_NAME = 'procrastinever-v1.1';
 const ASSETS = [
-  './',
   './index.html',
   './manifest.json',
   './logo.png'
 ];
 
-// 1. INSTALACIÓN: Guarda los archivos base para que el APK abra al instante
+// 1. INSTALACIÓN: Guarda los archivos base
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -28,7 +27,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// 3. FETCH: Permite que la app cargue offline (estratégico para el APK)
+// 3. FETCH: Estrategia Network-First (Busca internet primero, si no hay, usa el caché)
 self.addEventListener('fetch', (event) => {
   // No cacheamos Firebase para no romper la sincronización en tiempo real
   if (event.request.url.includes('firestore.googleapis.com') || 
@@ -43,7 +42,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// 4. PUSH (Tu código): Recibe notificaciones incluso con la app cerrada
+// 4. PUSH: Recibe notificaciones
 self.addEventListener('push', function(event) {
     const options = {
         body: event.data ? event.data.text() : '¡Es hora de revisar tus hábitos!',
@@ -60,15 +59,19 @@ self.addEventListener('push', function(event) {
     );
 });
 
-// 5. CLICK EN NOTIFICACIÓN: Vital para que el APK se abra al tocar el aviso
+// 5. CLICK EN NOTIFICACIÓN: Abre la app o la trae al frente en GitHub Pages
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
     event.waitUntil(
-        clients.matchAll({ type: 'window' }).then((clientList) => {
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+            // Busca si ya hay una pestaña abierta con la app
             for (const client of clientList) {
-                if (client.url === '/' && 'focus' in client) return client.focus();
+                if (client.url.includes('index.html') && 'focus' in client) {
+                    return client.focus();
+                }
             }
-            if (clients.openWindow) return clients.openWindow('./');
+            // Si no hay ninguna abierta, abre una nueva
+            if (clients.openWindow) return clients.openWindow('./index.html');
         })
     );
 });
