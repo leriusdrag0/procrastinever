@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-	<link rel="icon" type="image/png" href="logo.png">
+    <link rel="icon" type="image/png" href="logo.png">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎴 ProcrastiNever - Coleccionista de hábitos</title>
-	<link rel="manifest" href="manifest.json">
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -308,7 +308,7 @@
         </div>
     </div>
 
-	<script type="module">
+    <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -342,16 +342,13 @@
             }
         }
 
-// --- CONFIGURACIÓN DE USUARIOS CON PERSISTENCIA ---
+        // --- CONFIGURACIÓN DE USUARIOS CON PERSISTENCIA ---
         const params = new URLSearchParams(window.location.search);
         let userId = params.get('user');
 
-        // 1. Si entramos por URL con ?user=..., lo guardamos
         if (userId) {
             localStorage.setItem('procrastiActiveUser', userId);
         } else {
-            // 2. Si no hay parámetro (como al abrir desde el escritorio), 
-            // intentamos recuperar el último usuario guardado.
             userId = localStorage.getItem('procrastiActiveUser') || 'Invitado';
         }
 
@@ -371,7 +368,7 @@
         // --- VARIABLES DEL POMODORO GLOBAL ---
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, expectedEndTime = 0;
 
-        // FUNCIÓN PARA SUBIR DATOS A LA NUBE (AHORA CON POMO STATE)
+        // FUNCIÓN PARA SUBIR DATOS A LA NUBE (CON POMO STATE)
         async function syncToCloud() {
             try {
                 const data = {
@@ -403,7 +400,7 @@
                 unlockedTrophies = cloud.unlockedTrophies || {};
                 allLogs = cloud.allLogs || {};
 
-                // 2. Sincronización de Tema (¡Importante!)
+                // 2. Sincronización de Tema 
                 if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
                     applyTheme(cloud.currentTheme);
                 }
@@ -412,7 +409,6 @@
                 if (cloud.pomoState) {
                     const pState = cloud.pomoState;
                     
-                    // Caso A: La nube dice "corriendo" pero aquí está "parado"
                     if (pState.isRunning && !isRunning) {
                         currentMode = pState.currentMode;
                         currentCycle = pState.currentCycle;
@@ -421,7 +417,6 @@
                         const remaining = Math.round((expectedEndTime - Date.now()) / 1000);
                         if (remaining > 0) {
                             timeLeft = remaining;
-                            // Forzamos el salto a la pestaña pomodoro para ver el reloj
                             const pomoBtn = document.querySelector('[onclick*="pomodoro"]');
                             if (pomoBtn) switchTab({ target: pomoBtn }, 'pomodoro');
                             startTimerLogic();
@@ -430,7 +425,6 @@
                             handlePhaseEnd();
                         }
                     } 
-                    // Caso B: La nube dice "pausa/reset" pero aquí sigue corriendo
                     else if (!pState.isRunning && isRunning) {
                         clearInterval(timerId);
                         isRunning = false;
@@ -439,7 +433,6 @@
                         document.body.classList.remove('deep-focus');
                     }
                     
-                    // Sincronización de estado cuando NO está corriendo (ej. al resetear)
                     if (!isRunning) {
                         currentMode = pState.currentMode;
                         currentCycle = pState.currentCycle;
@@ -448,14 +441,14 @@
                     updatePomoUI(); 
                 }
                 
-                // 4. Guardado en LocalStorage para persistencia offline
+                // 4. Guardado en LocalStorage
                 localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
                 localStorage.setItem('totalXP', totalXP);
                 localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
-                localStorage.setItem('procrastiHistory', JSON.stringify(historyData)); // Añadido historial
-                localStorage.setItem('procrastiTrophies', JSON.stringify(unlockedTrophies)); // Añadido trofeos
+                localStorage.setItem('procrastiHistory', JSON.stringify(historyData)); 
+                localStorage.setItem('procrastiTrophies', JSON.stringify(unlockedTrophies)); 
 
-                // 5. Refresco de toda la Interfaz
+                // 5. Refresco de Interfaz
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule();
                 updateLevelUI();
@@ -846,6 +839,7 @@
         function renderDots() { const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value); c.innerHTML = ''; for(let i=1; i<=tot; i++) { const d = document.createElement('div'); d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`; c.appendChild(d); } document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`; }
         function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
         function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
+        
         window.switchTab = (ev, tab) => {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
