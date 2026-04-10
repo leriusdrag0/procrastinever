@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎴 ProcrastiNever - Coleccionista de hábitos</title>
-    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -227,9 +226,9 @@
         </div>
 
         <div class="chart-container">
-            <h3 style="text-align:center; font-size:1rem; margin-bottom:15px; color:var(--color-text-primary);">Productividad por Categoría (Registros)</h3>
+            <h3 style="text-align:center; font-size:1rem; margin-bottom:15px; color:var(--color-text-primary);">Productividad por Categoría</h3>
             <canvas id="categoryPieChart" width="400" height="250"></canvas>
-            <p id="emptyPieMsg" style="text-align:center; font-size:0.8rem; color:var(--color-text-secondary); display:none; margin-top:10px;">Completa pomodoros o añade actividades en la pestaña "Registro" para ver tu distribución.</p>
+            <p id="emptyPieMsg" style="text-align:center; font-size:0.8rem; color:var(--color-text-secondary); display:none; margin-top:10px;">Añade actividades para ver tu distribución.</p>
         </div>
 
         <div style="display:flex; gap:10px;">
@@ -299,16 +298,17 @@
             </div>
             
             <div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;">
-                <label>Puntos (Solo para gráfica de pastel):</label>
+                <label>Puntos:</label>
                 <input type="number" id="logPoints" value="1" step="0.1" style="width:70px;">
             </div>
             
-            <button class="btn" onclick="saveLogActivity()" style="width:100%;">Añadir Registro Extra</button>
+            <button class="btn" onclick="saveLogActivity()" style="width:100%;">Añadir Registro</button>
             <button class="btn btn-outline" onclick="closeLogEditor()" style="width:100%; margin-top:8px; border:none;">Cancelar</button>
         </div>
     </div>
 
     <script type="module">
+        // --- 1. CONFIGURACIÓN FIREBASE Y USUARIO ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -324,25 +324,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // --- PERMISOS Y SERVICE WORKER ---
-        if ("Notification" in window) {
-            Notification.requestPermission();
-        }
-
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js').then(() => {
-                console.log("Service Worker registrado correctamente");
-            });
-        }
-
-        function sendNotification(title, message) {
-            if (Notification.permission === "granted") {
-                new Notification(title, { body: message, icon: 'logo.png' });
-                if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-            }
-        }
-
-        // --- CONFIGURACIÓN DE USUARIOS CON PERSISTENCIA ---
         const params = new URLSearchParams(window.location.search);
         let userId = params.get('user');
 
@@ -355,7 +336,7 @@
         const userDocRef = doc(db, "userData", userId);
         console.log("Sesión activa para:", userId);
 
-        // --- ESTADO Y DATOS ---
+        // --- 2. VARIABLES DE ESTADO ---
         let userSchedule = JSON.parse(localStorage.getItem('userSchedule')) || [];
         let historyData = JSON.parse(localStorage.getItem('procrastiHistory')) || {};
         let totalXP = parseFloat(localStorage.getItem('totalXP')) || 0;
@@ -365,109 +346,14 @@
         let currentLogDate = new Date().toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
-        // --- VARIABLES DEL POMODORO GLOBAL ---
-        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, expectedEndTime = 0;
-
-        // FUNCIÓN PARA SUBIR DATOS A LA NUBE (CON POMO STATE)
-        async function syncToCloud() {
-            try {
-                const data = {
-                    userSchedule, historyData, totalXP, 
-                    unlockedTrophies, allLogs, currentTheme,
-                    pomoState: {
-                        expectedEndTime: expectedEndTime,
-                        isRunning: isRunning,
-                        currentMode: currentMode,
-                        currentCycle: currentCycle,
-                        timeLeft: timeLeft
-                    },
-                    lastUpdated: Date.now()
-                };
-                await setDoc(userDocRef, data);
-                console.log("☁️ Sincronizado con la nube");
-            } catch (e) { console.error("Error al sincronizar:", e); }
-        }
-
-        // ESCUCHA DE CAMBIOS EN TIEMPO REAL (VERSIÓN PULIDA)
-        onSnapshot(userDocRef, (doc) => {
-            if (doc.exists()) {
-                const cloud = doc.data();
-                
-                // 1. Sincronización de Datos Básicos
-                userSchedule = cloud.userSchedule || [];
-                historyData = cloud.historyData || {};
-                totalXP = cloud.totalXP || 0;
-                unlockedTrophies = cloud.unlockedTrophies || {};
-                allLogs = cloud.allLogs || {};
-
-                // 2. Sincronización de Tema 
-                if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
-                    applyTheme(cloud.currentTheme);
-                }
-                
-                // 3. --- SINCRONIZACIÓN INTELIGENTE DE POMODORO ---
-                if (cloud.pomoState) {
-                    const pState = cloud.pomoState;
-                    
-                    if (pState.isRunning && !isRunning) {
-                        currentMode = pState.currentMode;
-                        currentCycle = pState.currentCycle;
-                        expectedEndTime = pState.expectedEndTime;
-                        
-                        const remaining = Math.round((expectedEndTime - Date.now()) / 1000);
-                        if (remaining > 0) {
-                            timeLeft = remaining;
-                            const pomoBtn = document.querySelector('[onclick*="pomodoro"]');
-                            if (pomoBtn) switchTab({ target: pomoBtn }, 'pomodoro');
-                            startTimerLogic();
-                        } else {
-                            timeLeft = 0;
-                            handlePhaseEnd();
-                        }
-                    } 
-                    else if (!pState.isRunning && isRunning) {
-                        clearInterval(timerId);
-                        isRunning = false;
-                        timeLeft = pState.timeLeft || timeLeft;
-                        document.getElementById('startBtn').textContent = "▶️ Reanudar";
-                        document.body.classList.remove('deep-focus');
-                    }
-                    
-                    if (!isRunning) {
-                        currentMode = pState.currentMode;
-                        currentCycle = pState.currentCycle;
-                        timeLeft = pState.timeLeft || timeLeft;
-                    }
-                    updatePomoUI(); 
-                }
-                
-                // 4. Guardado en LocalStorage
-                localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
-                localStorage.setItem('totalXP', totalXP);
-                localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
-                localStorage.setItem('procrastiHistory', JSON.stringify(historyData)); 
-                localStorage.setItem('procrastiTrophies', JSON.stringify(unlockedTrophies)); 
-
-                // 5. Refresco de Interfaz
-                dailyLogs = allLogs[currentLogDate] || [];
-                renderSchedule();
-                updateLevelUI();
-                renderLog();
-                renderCollection();
-            }
-        });
+        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
 
         const trophyData = [
-            { pts: 1, icon: '🥉', name: 'Primer Paso' },
-            { pts: 30, icon: '🥈', name: 'En Racha' },
-            { pts: 50, icon: '🥇', name: 'A Mitad de Camino' },
-            { pts: 100, icon: '💎', name: 'Casi Perfecto' },
-            { pts: 210, icon: '👑', name: 'Día Legendario' },
-            { pts: 300, icon: '🚀', name: 'Imparable' },
-            { pts: 400, icon: '🦸', name: 'Superhéroe' },
-            { pts: 500, icon: '🔥', name: 'Máquina Productiva' },
-            { pts: 600, icon: '🌟', name: 'Estrella Absoluta' },
-            { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
+            { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
+            { pts: 50, icon: '🥇', name: 'A Mitad de Camino' }, { pts: 100, icon: '💎', name: 'Casi Perfecto' },
+            { pts: 210, icon: '👑', name: 'Día Legendario' }, { pts: 300, icon: '🚀', name: 'Imparable' },
+            { pts: 400, icon: '🦸', name: 'Superhéroe' }, { pts: 500, icon: '🔥', name: 'Máquina Productiva' },
+            { pts: 600, icon: '🌟', name: 'Estrella Absoluta' }, { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
         ];
         
         const emojis = [
@@ -477,24 +363,51 @@
             '🪐', '🎭', '🥊', '🍣', '🍦', '🚲', '⏰', '🔋', '💎', '🔥'
         ];
         
-        let selectedEmoji = '📝';
-        let logSelectedEmoji = '📝';
-        let editingIndex = -1;
-        let logEditingIndex = -1;
-        let chartInstance = null;
-        let pieChartInstance = null;
-
+        let selectedEmoji = '📝'; let logSelectedEmoji = '📝';
+        let editingIndex = -1; let logEditingIndex = -1;
+        let chartInstance = null; let pieChartInstance = null;
         const themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
         const themeIcons = { 'light': '🍂', 'dark': '🌙', 'winter': '❄️', 'spring': '🌸', 'summer': '🏖️', 'purple': '🔮' };
 
+        // --- 3. SINCRONIZACIÓN CLOUD ---
+        async function syncToCloud() {
+            try {
+                const data = { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastUpdated: Date.now() };
+                await setDoc(userDocRef, data);
+            } catch (e) { console.error("Error al sincronizar:", e); }
+        }
+
+        onSnapshot(userDocRef, (doc) => {
+            if (doc.exists()) {
+                const cloud = doc.data();
+                userSchedule = cloud.userSchedule || [];
+                historyData = cloud.historyData || {};
+                totalXP = cloud.totalXP || 0;
+                unlockedTrophies = cloud.unlockedTrophies || {};
+                allLogs = cloud.allLogs || {};
+                
+                if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
+                    applyTheme(cloud.currentTheme);
+                }
+
+                localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
+                localStorage.setItem('totalXP', totalXP);
+                localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
+                localStorage.setItem('procrastiHistory', JSON.stringify(historyData)); 
+                localStorage.setItem('procrastiTrophies', JSON.stringify(unlockedTrophies)); 
+
+                dailyLogs = allLogs[currentLogDate] || [];
+                renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
+            }
+        });
+
+        // --- 4. FUNCIONES GLOBALES (Expuestas a window para HTML) ---
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('themeToggleBtn').textContent = themeIcons[theme];
             localStorage.setItem('procrastiTheme', theme);
             currentTheme = theme;
-            if(document.getElementById('historyTab').classList.contains('active')) {
-                renderChart(); renderPieChart();
-            }
+            if(document.getElementById('historyTab').classList.contains('active')) { renderChart(); renderPieChart(); }
         }
 
         window.toggleTheme = () => {
@@ -502,6 +415,14 @@
             let nextIndex = (currentIndex + 1) % themes.length;
             applyTheme(themes[nextIndex]);
             syncToCloud();
+        };
+
+        window.switchTab = (ev, tab) => {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(tab + 'Tab').classList.add('active');
+            ev.target.classList.add('active');
+            if(tab === 'history') { renderChart(); renderPieChart(); }
         };
 
         function updateLevelUI() {
@@ -576,8 +497,7 @@
         }
 
         window.selectLogDate = (dateStr) => {
-            if (!dateStr) return;
-            currentLogDate = dateStr;
+            if (!dateStr) return; currentLogDate = dateStr;
             document.getElementById('logDateSelector').value = currentLogDate;
             dailyLogs = allLogs[currentLogDate] || [];
             renderLog();
@@ -617,8 +537,7 @@
             let newlyUnlocked = false;
             trophyData.forEach(t => {
                 if (earnedPts >= t.pts && !unlockedTrophies[t.pts]) {
-                    unlockedTrophies[t.pts] = true;
-                    newlyUnlocked = true;
+                    unlockedTrophies[t.pts] = true; newlyUnlocked = true;
                     setTimeout(() => alert(`🏆 ¡Desbloqueaste: ${t.name}!`), 400);
                 }
             });
@@ -627,8 +546,7 @@
 
         function renderCollection() {
             const container = document.getElementById('trophyCase');
-            if(!container) return;
-            container.innerHTML = '';
+            if(!container) return; container.innerHTML = '';
             trophyData.forEach(t => {
                 const isUnlocked = unlockedTrophies[t.pts];
                 const div = document.createElement('div');
@@ -704,150 +622,71 @@
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- SISTEMA POMODORO GLOBAL (SINCRONIZADO) ---
-        
-        // 0. GUARDAR AJUSTES
-        window.savePomoSettings = () => {
-            localStorage.setItem('pomoStudy', document.getElementById('studyMin').value);
-            localStorage.setItem('pomoRest', document.getElementById('restMin').value);
-            localStorage.setItem('pomoCycles', document.getElementById('totalCycles').value);
-            if(!isRunning) window.resetTimer();
-        };
-
-        // 1. FUNCIÓN PARA ACTUALIZAR LA INTERFAZ
-        function updatePomoUI() {
+        // --- POMODORO ESTÁNDAR ---
+        function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-            const display = document.getElementById('timerDisplay');
-            const status = document.getElementById('pomoStatus');
-            const card = document.getElementById('pomoCard');
-            
-            if (display) display.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
-            
-            if (status) {
-                status.textContent = currentMode === 'study' ? "✍️ Estudio" : "☕ Descanso";
+            document.getElementById('timerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+        
+        function renderDots() {
+            const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value);
+            c.innerHTML = '';
+            for(let i=1; i<=tot; i++) {
+                const d = document.createElement('div');
+                d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
+                c.appendChild(d);
             }
-            
-            if (card) {
-                if (currentMode === 'rest') card.classList.add('mode-rest');
-                else card.classList.remove('mode-rest');
-            }
-            renderDots();
+            document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
         }
 
-        // 2. LÓGICA DEL TEMPORIZADOR
-        function startTimerLogic() {
-            isRunning = true;
-            document.getElementById('startBtn').textContent = "⏸️ Pausar";
-            document.body.classList.add('deep-focus');
-            
-            updatePomoUI(); 
-            
-            if (timerId) clearInterval(timerId);
-            timerId = setInterval(() => {
-                timeLeft = Math.round((expectedEndTime - Date.now()) / 1000);
-                
-                if (timeLeft <= 0) {
-                    timeLeft = 0;
-                    updatePomoUI();
-                    playAlarm();
-                    handlePhaseEnd();
-                } else {
-                    updatePomoUI();
-                }
-            }, 1000);
-        }
+        window.savePomoSettings = () => { window.resetTimer(); };
 
-        // 3. BOTÓN PLAY/PAUSA
         window.toggleTimer = () => {
-            if (isRunning) { 
-                clearInterval(timerId); 
-                isRunning = false; 
-                document.getElementById('startBtn').textContent = "▶️ Reanudar"; 
-                document.body.classList.remove('deep-focus'); 
-            } else { 
-                expectedEndTime = Date.now() + (timeLeft * 1000);
-                startTimerLogic();
+            if(isRunning) { clearInterval(timerId); isRunning = false; document.getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
+            else {
+                isRunning = true; document.getElementById('startBtn').textContent = "⏸️ Pausar"; document.body.classList.add('deep-focus');
+                timerId = setInterval(() => {
+                    timeLeft--; updateDisplay();
+                    if(timeLeft <= 0) handlePhaseEnd();
+                }, 1000);
             }
-            syncToCloud(); 
         };
 
-        // 4. REINICIO
-        window.resetTimer = (isAppLoading = false) => { 
-            clearInterval(timerId); 
-            isRunning = false; 
-            currentMode = 'study'; 
-            currentCycle = 1; 
-            document.body.classList.remove('deep-focus'); 
-            
-            const studyMin = document.getElementById('studyMin').value || 25;
-            timeLeft = studyMin * 60; 
-            
-            document.getElementById('pomoStatus').textContent = "Listo para Empezar"; 
-            document.getElementById('pomoCard').classList.remove('mode-rest'); 
-            document.getElementById('startBtn').textContent = "▶️ Empezar"; 
-            
-            updatePomoUI(); 
-            if (!isAppLoading) syncToCloud(); 
+        window.resetTimer = () => {
+            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
+            timeLeft = (document.getElementById('studyMin').value || 25) * 60;
+            document.getElementById('pomoStatus').textContent = "Listo para Empezar";
+            document.getElementById('pomoCard').classList.remove('mode-rest');
+            document.getElementById('startBtn').textContent = "▶️ Empezar";
+            updateDisplay(); renderDots();
         };
 
-        // 5. CAMBIO DE FASE
         function handlePhaseEnd() {
-            clearInterval(timerId); 
-            isRunning = false; 
-            document.body.classList.remove('deep-focus');
+            clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
+            playAlarm();
             const total = parseInt(document.getElementById('totalCycles').value);
-            
-            if (currentMode === 'study') {
-                sendNotification("¡Tiempo cumplido!", "Es hora de un descanso ☕");
-                const now = new Date();
-                const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            if(currentMode === 'study') {
+                const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
-                
-                if (activeTask) {
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    if (!allLogs[todayStr]) allLogs[todayStr] = [];
-                    allLogs[todayStr].push({ 
-                        activity: activeTask.activity + " (Pomo)", 
-                        time: currentTime, 
-                        emoji: activeTask.emoji, 
-                        points: activeTask.points, 
-                        category: activeTask.category 
-                    });
+                if(activeTask) {
+                    if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
+                    allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                    syncToCloud(); renderLog();
                 }
-
-                if (currentCycle >= total) { 
-                    alert("¡Sesión completa!"); 
-                    window.resetTimer(); 
-                    return; 
-                }
-                
-                currentMode = 'rest'; 
-                timeLeft = document.getElementById('restMin').value * 60;
+                if(currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
+                currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
+                document.getElementById('pomoStatus').textContent = "☕ Descanso";
+                document.getElementById('pomoCard').classList.add('mode-rest');
             } else {
-                sendNotification("¡A trabajar!", "El descanso terminó, vuelve al enfoque ✍️");
-                currentMode = 'study'; 
-                currentCycle++; 
-                timeLeft = document.getElementById('studyMin').value * 60;
+                currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
+                document.getElementById('pomoStatus').textContent = "✍️ Estudio";
+                document.getElementById('pomoCard').classList.remove('mode-rest');
             }
-            
-            expectedEndTime = Date.now() + (timeLeft * 1000);
-            syncToCloud(); 
-            startTimerLogic(); 
+            renderDots(); updateDisplay(); window.toggleTimer();
         }
 
-        // 6. FUNCIONES AUXILIARES (UI)
-        function renderDots() { const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value); c.innerHTML = ''; for(let i=1; i<=tot; i++) { const d = document.createElement('div'); d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`; c.appendChild(d); } document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`; }
         function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
         function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
-        
-        window.switchTab = (ev, tab) => {
-            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(tab + 'Tab').classList.add('active');
-            ev.target.classList.add('active');
-            if(tab === 'history') { renderChart(); renderPieChart(); }
-        };
-
         function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
 
         window.renderChart = () => {
@@ -878,10 +717,8 @@
             else { msgEl.style.display = 'none'; canvasEl.style.display = 'block'; }
             if(pieChartInstance) pieChartInstance.destroy();
             const bgColors = [
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-work').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-study').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
+                getComputedStyle(document.documentElement).getPropertyValue('--cat-work').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-study').trim(),
+                getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
                 getComputedStyle(document.documentElement).getPropertyValue('--cat-chores').trim()
             ];
             pieChartInstance = new Chart(ctxPie, { type: 'doughnut', data: { labels: ['💼', '📚', '🍏', '🎮', '🏠'], datasets: [{ data: [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores], backgroundColor: bgColors }] } });
@@ -911,8 +748,7 @@
         }
 
         function renderEmojiPickers() {
-            const picker1 = document.getElementById('emojiPicker');
-            const picker2 = document.getElementById('logEmojiPicker');
+            const picker1 = document.getElementById('emojiPicker'); const picker2 = document.getElementById('logEmojiPicker');
             emojis.forEach(e => {
                 const s1 = document.createElement('span'); s1.className='emoji-option'; s1.textContent = e;
                 s1.onclick = () => { selectedEmoji = e; updateEmojiSelection('edit'); }; picker1.appendChild(s1);
@@ -923,24 +759,13 @@
 
         function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
         
-        // INICIALIZACIÓN Y SALUDO
-        applyTheme(currentTheme);
-        updateLevelUI();
-        renderEmojiPickers();
-        renderCollection(); 
-        renderSchedule();
-        renderLog();
-        window.resetTimer(true);
+        // --- 5. INICIALIZACIÓN ---
+        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
+        renderCollection(); renderSchedule(); renderLog(); window.resetTimer();
         
-        // Saludo personalizado
         const greetingElement = document.getElementById('welcomeMessage');
         if (greetingElement) {
-            const greetings = [
-                `¡Qué bueno verte otra vez, ${userId}!`,
-                `Bienvenido de nuevo, ${userId}. ¿Qué vamos a lograr hoy?`,
-                `Hola ${userId}, tus trofeos te estaban esperando.`,
-                `Sesión activa: ${userId}. ¡A darle con todo!`
-            ];
+            const greetings = [ `¡Qué bueno verte otra vez, ${userId}!`, `Bienvenido de nuevo, ${userId}. ¿Qué vamos a lograr hoy?`, `Sesión activa: ${userId}. ¡A darle con todo!` ];
             greetingElement.textContent = greetings[Math.floor(Math.random() * greetings.length)];
         }
 
