@@ -327,6 +327,7 @@
         const params = new URLSearchParams(window.location.search);
         let userId = params.get('user');
 
+        // Solo la memoria de "quién es el último usuario activo" se comparte
         if (userId) {
             localStorage.setItem('procrastiActiveUser', userId);
         } else {
@@ -336,13 +337,14 @@
         const userDocRef = doc(db, "userData", userId);
         console.log("Sesión activa para:", userId);
 
-        // --- 2. VARIABLES DE ESTADO ---
-        let userSchedule = JSON.parse(localStorage.getItem('userSchedule')) || [];
-        let historyData = JSON.parse(localStorage.getItem('procrastiHistory')) || {};
-        let totalXP = parseFloat(localStorage.getItem('totalXP')) || 0;
-        let unlockedTrophies = JSON.parse(localStorage.getItem('procrastiTrophies')) || {};
-        let allLogs = JSON.parse(localStorage.getItem('procrastiAllLogs')) || {};
-        let currentTheme = localStorage.getItem('procrastiTheme') || 'light';
+        // --- 2. VARIABLES DE ESTADO (AISLADAS POR USUARIO) ---
+        // Ahora cada variable busca la llave específica del usuario actual
+        let userSchedule = JSON.parse(localStorage.getItem(`userSchedule_${userId}`)) || [];
+        let historyData = JSON.parse(localStorage.getItem(`procrastiHistory_${userId}`)) || {};
+        let totalXP = parseFloat(localStorage.getItem(`totalXP_${userId}`)) || 0;
+        let unlockedTrophies = JSON.parse(localStorage.getItem(`procrastiTrophies_${userId}`)) || {};
+        let allLogs = JSON.parse(localStorage.getItem(`procrastiAllLogs_${userId}`)) || {};
+        let currentTheme = localStorage.getItem(`procrastiTheme_${userId}`) || 'light';
         let currentLogDate = new Date().toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
@@ -390,11 +392,12 @@
                     applyTheme(cloud.currentTheme);
                 }
 
-                localStorage.setItem('userSchedule', JSON.stringify(userSchedule));
-                localStorage.setItem('totalXP', totalXP);
-                localStorage.setItem('procrastiAllLogs', JSON.stringify(allLogs));
-                localStorage.setItem('procrastiHistory', JSON.stringify(historyData)); 
-                localStorage.setItem('procrastiTrophies', JSON.stringify(unlockedTrophies)); 
+                // Guardado aislado
+                localStorage.setItem(`userSchedule_${userId}`, JSON.stringify(userSchedule));
+                localStorage.setItem(`totalXP_${userId}`, totalXP);
+                localStorage.setItem(`procrastiAllLogs_${userId}`, JSON.stringify(allLogs));
+                localStorage.setItem(`procrastiHistory_${userId}`, JSON.stringify(historyData)); 
+                localStorage.setItem(`procrastiTrophies_${userId}`, JSON.stringify(unlockedTrophies)); 
 
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
@@ -405,7 +408,7 @@
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('themeToggleBtn').textContent = themeIcons[theme];
-            localStorage.setItem('procrastiTheme', theme);
+            localStorage.setItem(`procrastiTheme_${userId}`, theme);
             currentTheme = theme;
             if(document.getElementById('historyTab').classList.contains('active')) { renderChart(); renderPieChart(); }
         }
@@ -437,7 +440,7 @@
             document.getElementById('levelBadge').textContent = `Nivel ${level}`;
             document.getElementById('rankText').textContent = rank;
             document.getElementById('xpBar').style.width = `${progress}%`;
-            localStorage.setItem('totalXP', totalXP);
+            localStorage.setItem(`totalXP_${userId}`, totalXP);
         }
 
         function renderSchedule() {
@@ -639,7 +642,12 @@
             document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
         }
 
-        window.savePomoSettings = () => { window.resetTimer(); };
+        window.savePomoSettings = () => { 
+            localStorage.setItem(`pomoStudy_${userId}`, document.getElementById('studyMin').value);
+            localStorage.setItem(`pomoRest_${userId}`, document.getElementById('restMin').value);
+            localStorage.setItem(`pomoCycles_${userId}`, document.getElementById('totalCycles').value);
+            window.resetTimer(); 
+        };
 
         window.toggleTimer = () => {
             if(isRunning) { clearInterval(timerId); isRunning = false; document.getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
@@ -654,7 +662,14 @@
 
         window.resetTimer = () => {
             clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
-            timeLeft = (document.getElementById('studyMin').value || 25) * 60;
+            
+            // Cargar configuración de Pomodoro aislada
+            const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
+            document.getElementById('studyMin').value = sMin;
+            document.getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
+            document.getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+            
+            timeLeft = sMin * 60;
             document.getElementById('pomoStatus').textContent = "Listo para Empezar";
             document.getElementById('pomoCard').classList.remove('mode-rest');
             document.getElementById('startBtn').textContent = "▶️ Empezar";
@@ -728,7 +743,7 @@
             const data = { userSchedule, allLogs, historyData, totalXP, unlockedTrophies };
             const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `ProcrastiNever_Backup.json`; a.click();
+            a.download = `ProcrastiNever_${userId}_Backup.json`; a.click();
         };
 
         window.importData = (event) => {
@@ -772,5 +787,5 @@
         setInterval(updateClock, 1000); updateClock();
         setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
     </script>
-</body>
-</html>
+
+    
