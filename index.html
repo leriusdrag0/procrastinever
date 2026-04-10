@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎴 ProcrastiNever - Coleccionista de hábitos</title>
+    <link rel="manifest" href="manifest.json">
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -147,6 +148,7 @@
 
     <div class="header">
         <button id="themeToggleBtn" class="theme-btn" onclick="toggleTheme()" title="Cambiar Tema">🍂</button>
+        <button id="installAppBtn" class="theme-btn" style="display: none; left: 55px;" title="Instalar Aplicación">📥</button>
         <div id="miniClock" style="position: absolute; top: 15px; right: 20px; font-size: 0.85rem; color: var(--color-text-secondary); font-family: monospace; font-weight: bold;"></div>
         <div class="level-badge" id="levelBadge">Nivel 1</div>
         <div class="rank-text" id="rankText">🐣 Novato</div>
@@ -327,7 +329,6 @@
         const params = new URLSearchParams(window.location.search);
         let userId = params.get('user');
 
-        // Solo la memoria de "quién es el último usuario activo" se comparte
         if (userId) {
             localStorage.setItem('procrastiActiveUser', userId);
         } else {
@@ -338,7 +339,6 @@
         console.log("Sesión activa para:", userId);
 
         // --- 2. VARIABLES DE ESTADO (AISLADAS POR USUARIO) ---
-        // Ahora cada variable busca la llave específica del usuario actual
         let userSchedule = JSON.parse(localStorage.getItem(`userSchedule_${userId}`)) || [];
         let historyData = JSON.parse(localStorage.getItem(`procrastiHistory_${userId}`)) || {};
         let totalXP = parseFloat(localStorage.getItem(`totalXP_${userId}`)) || 0;
@@ -404,7 +404,7 @@
             }
         });
 
-        // --- 4. FUNCIONES GLOBALES (Expuestas a window para HTML) ---
+        // --- 4. FUNCIONES GLOBALES ---
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('themeToggleBtn').textContent = themeIcons[theme];
@@ -663,7 +663,6 @@
         window.resetTimer = () => {
             clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
             
-            // Cargar configuración de Pomodoro aislada
             const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
             document.getElementById('studyMin').value = sMin;
             document.getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
@@ -786,6 +785,40 @@
 
         setInterval(updateClock, 1000); updateClock();
         setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
-    </script>
 
-    
+        // --- 6. PWA INSTALL PROMPT ---
+        let deferredPrompt;
+        const installBtn = document.getElementById('installAppBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevenir que el prompt automático se muestre en navegadores antiguos
+            e.preventDefault();
+            // Guardar el evento para dispararlo cuando el usuario haga clic en el botón
+            deferredPrompt = e;
+            // Mostrar el botón de instalación (el icono de 📥)
+            if(installBtn) installBtn.style.display = 'block';
+        });
+
+        if(installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    // Mostrar el aviso del sistema para instalar la app
+                    deferredPrompt.prompt();
+                    // Esperar a que el usuario acepte o rechace
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`Respuesta a la instalación: ${outcome}`);
+                    // Limpiar el evento guardado
+                    deferredPrompt = null;
+                    installBtn.style.display = 'none';
+                }
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            // Si la PWA se instala exitosamente, escondemos el botón
+            if(installBtn) installBtn.style.display = 'none';
+            console.log('ProcrastiNever instalada exitosamente');
+        });
+    </script>
+</body>
+</html>
