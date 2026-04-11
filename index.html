@@ -178,13 +178,13 @@
     </div>
 
     <div id="logTab" class="tab-content">
-        <p style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 15px; text-align: center;">Este registro se llena automáticamente al completar un ciclo Pomodoro para una tarea activa. También puedes registrar extras abajo.</p>
+        <p style="font-size: 0.85rem; color: var(--color-text-secondary); margin-bottom: 15px; text-align: center;">Este registro se llena automáticamente al completar un ciclo Pomodoro para una tarea activa.</p>
         
         <div style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 15px;">
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(-1)">◀</button>
             <input type="date" id="logDateSelector" style="padding: 8px; border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); border: 1px solid var(--color-border); font-weight: bold;" onchange="selectLogDate(this.value)">
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(1)">▶</button>
-            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date().toISOString().split('T')[0])">Hoy</button>
+            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date().toLocaleDateString('en-CA'))">Hoy</button>
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -213,30 +213,19 @@
 
     <div id="historyTab" class="tab-content">
         <div class="streak-banner" id="streakBanner">🔥 Racha: 0 días</div>
-        
         <div class="chart-container">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom:15px;">
                 <h3 style="font-size:1rem; color:var(--color-text-primary);">Rendimiento</h3>
                 <select id="chartTimeRange" onchange="renderChart()" style="padding: 5px; border-radius: 5px; background: var(--color-bg-primary); color: var(--color-text-primary); border: 1px solid var(--color-border);">
                     <option value="7">Últimos 7 días</option>
                     <option value="30">Último Mes</option>
-                    <option value="90">Trimestre (Semanas)</option>
-                    <option value="365">Anual (Meses)</option>
                 </select>
             </div>
             <canvas id="historyChart" width="400" height="200"></canvas>
         </div>
-
         <div class="chart-container">
             <h3 style="text-align:center; font-size:1rem; margin-bottom:15px; color:var(--color-text-primary);">Productividad por Categoría</h3>
             <canvas id="categoryPieChart" width="400" height="250"></canvas>
-            <p id="emptyPieMsg" style="text-align:center; font-size:0.8rem; color:var(--color-text-secondary); display:none; margin-top:10px;">Añade actividades para ver tu distribución.</p>
-        </div>
-
-        <div style="display:flex; gap:10px;">
-            <button class="btn btn-outline" style="flex:1; font-size:0.8rem;" onclick="exportData()">💾 Exportar</button>
-            <button class="btn btn-outline" style="flex:1; font-size:0.8rem;" onclick="document.getElementById('importFile').click()">📂 Importar</button>
-            <input type="file" id="importFile" style="display:none" onchange="importData(event)">
         </div>
     </div>
 
@@ -248,69 +237,10 @@
         <div class="trophy-case" id="trophyCase"></div>
     </div>
 
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <h3>Configurar Tarea de Rutina</h3>
-            <div class="emoji-picker" id="emojiPicker"></div>
-            
-            <label style="font-size:0.8rem;">Categoría:</label>
-            <select id="editCategory">
-                <option value="work">💼 Trabajo</option>
-                <option value="study">📚 Estudio</option>
-                <option value="health">🍏 Salud / Deporte</option>
-                <option value="leisure">🎮 Ocio</option>
-                <option value="chores">🏠 Hogar</option>
-            </select>
-
-            <input type="text" id="editActivity" placeholder="¿Qué vas a hacer?">
-            
-            <div style="display:flex; gap:10px;">
-                <input type="time" id="editStart">
-                <input type="time" id="editEnd">
-            </div>
-            
-            <div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;">
-                <label>Puntos (admite 0.5):</label>
-                <input type="number" id="editPoints" value="1" step="0.1" style="width:70px;">
-            </div>
-            
-            <button class="btn" onclick="saveActivity()" style="width:100%;">Guardar Tarea</button>
-            <button class="btn btn-outline" onclick="closeEditor()" style="width:100%; margin-top:8px; border:none;">Cancelar</button>
-        </div>
-    </div>
-
-    <div id="logModal" class="modal">
-        <div class="modal-content">
-            <h3>¿Qué lograste hacer?</h3>
-            <div class="emoji-picker" id="logEmojiPicker"></div>
-            
-            <label style="font-size:0.8rem;">Categoría de la actividad:</label>
-            <select id="logCategory">
-                <option value="work">💼 Trabajo</option>
-                <option value="study">📚 Estudio</option>
-                <option value="health">🍏 Salud / Deporte</option>
-                <option value="leisure">🎮 Ocio</option>
-                <option value="chores">🏠 Hogar</option>
-            </select>
-
-            <input type="text" id="logActivity" placeholder="Ej: Leer 10 páginas, Ejercicio...">
-            
-            <div style="display:flex; gap:10px;">
-                <input type="time" id="logTime" title="Hora de inicio (Aprox)">
-            </div>
-            
-            <div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;">
-                <label>Puntos:</label>
-                <input type="number" id="logPoints" value="1" step="0.1" style="width:70px;">
-            </div>
-            
-            <button class="btn" onclick="saveLogActivity()" style="width:100%;">Añadir Registro</button>
-            <button class="btn btn-outline" onclick="closeLogEditor()" style="width:100%; margin-top:8px; border:none;">Cancelar</button>
-        </div>
-    </div>
+    <div id="editModal" class="modal"><div class="modal-content"><h3>Tarea de Rutina</h3><div class="emoji-picker" id="emojiPicker"></div><label>Categoría:</label><select id="editCategory"><option value="work">💼 Trabajo</option><option value="study">📚 Estudio</option><option value="health">🍏 Salud</option><option value="leisure">🎮 Ocio</option><option value="chores">🏠 Hogar</option></select><input type="text" id="editActivity" placeholder="Actividad"><div style="display:flex; gap:10px;"><input type="time" id="editStart"><input type="time" id="editEnd"></div><div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;"><label>Puntos:</label><input type="number" id="editPoints" value="1" step="0.1" style="width:70px;"></div><button class="btn" onclick="saveActivity()" style="width:100%;">Guardar</button><button class="btn btn-outline" onclick="closeEditor()" style="width:100%; margin-top:8px; border:none;">Cancelar</button></div></div>
+    <div id="logModal" class="modal"><div class="modal-content"><h3>Logro Extra</h3><div class="emoji-picker" id="logEmojiPicker"></div><label>Categoría:</label><select id="logCategory"><option value="work">💼 Trabajo</option><option value="study">📚 Estudio</option><option value="health">🍏 Salud</option><option value="leisure">🎮 Ocio</option><option value="chores">🏠 Hogar</option></select><input type="text" id="logActivity" placeholder="Ej: Lectura"><div style="display:flex; gap:10px;"><input type="time" id="logTime"></div><div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;"><label>Puntos:</label><input type="number" id="logPoints" value="1" step="0.1" style="width:70px;"></div><button class="btn" onclick="saveLogActivity()" style="width:100%;">Añadir</button><button class="btn btn-outline" onclick="closeLogEditor()" style="width:100%; margin-top:8px; border:none;">Cancelar</button></div></div>
 
     <script type="module">
-        // --- 1. CONFIGURACIÓN FIREBASE Y USUARIO ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -325,58 +255,40 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-
         const params = new URLSearchParams(window.location.search);
-        let userId = params.get('user');
-
-        if (userId) {
-            localStorage.setItem('procrastiActiveUser', userId);
-        } else {
-            userId = localStorage.getItem('procrastiActiveUser') || 'Invitado';
-        }
-
+        let userId = params.get('user') || localStorage.getItem('procrastiActiveUser') || 'Invitado';
+        localStorage.setItem('procrastiActiveUser', userId);
         const userDocRef = doc(db, "userData", userId);
-        console.log("Sesión activa para:", userId);
 
-        // --- 2. VARIABLES DE ESTADO (AISLADAS POR USUARIO) ---
+        // --- ESTADO INICIAL ---
         let userSchedule = JSON.parse(localStorage.getItem(`userSchedule_${userId}`)) || [];
         let historyData = JSON.parse(localStorage.getItem(`procrastiHistory_${userId}`)) || {};
         let totalXP = parseFloat(localStorage.getItem(`totalXP_${userId}`)) || 0;
         let unlockedTrophies = JSON.parse(localStorage.getItem(`procrastiTrophies_${userId}`)) || {};
         let allLogs = JSON.parse(localStorage.getItem(`procrastiAllLogs_${userId}`)) || {};
         let currentTheme = localStorage.getItem(`procrastiTheme_${userId}`) || 'light';
-        let currentLogDate = new Date().toISOString().split('T')[0];
+
+        // --- CORRECCIÓN DE FECHA LOCAL ---
+        const getLocalDateStr = () => {
+            const now = new Date();
+            // Esto obtiene YYYY-MM-DD basado en la zona horaria del usuario
+            return now.toLocaleDateString('en-CA'); 
+        };
+
+        let currentLogDate = getLocalDateStr();
         let dailyLogs = allLogs[currentLogDate] || [];
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
-
-        const trophyData = [
-            { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
-            { pts: 50, icon: '🥇', name: 'A Mitad de Camino' }, { pts: 100, icon: '💎', name: 'Casi Perfecto' },
-            { pts: 210, icon: '👑', name: 'Día Legendario' }, { pts: 300, icon: '🚀', name: 'Imparable' },
-            { pts: 400, icon: '🦸', name: 'Superhéroe' }, { pts: 500, icon: '🔥', name: 'Máquina Productiva' },
-            { pts: 600, icon: '🌟', name: 'Estrella Absoluta' }, { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
-        ];
-        
-        const emojis = [
-            '📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', 
-            '💧', '💤', '💪', '🛒', '📝', '🧠', '🛠️', '🌱', '🎵', '🏆',
-            '🧪', '🍿', '🧗', '🛹', '🧶', '📸', '🗺️', '🧸', '🔋', '🛸',
-            '🪐', '🎭', '🥊', '🍣', '🍦', '🚲', '⏰', '🔋', '💎', '🔥'
-        ];
-        
+        const trophyData = [ { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' }, { pts: 100, icon: '💎', name: 'Casi Perfecto' }, { pts: 210, icon: '👑', name: 'Día Legendario' } ];
+        const emojis = ['📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', '💧', '💤', '💪', '🛒', '📝'];
         let selectedEmoji = '📝'; let logSelectedEmoji = '📝';
-        let editingIndex = -1; let logEditingIndex = -1;
         let chartInstance = null; let pieChartInstance = null;
         const themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
         const themeIcons = { 'light': '🍂', 'dark': '🌙', 'winter': '❄️', 'spring': '🌸', 'summer': '🏖️', 'purple': '🔮' };
 
-        // --- 3. SINCRONIZACIÓN CLOUD ---
+        // --- FUNCIONES ---
         async function syncToCloud() {
-            try {
-                const data = { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastUpdated: Date.now() };
-                await setDoc(userDocRef, data);
-            } catch (e) { console.error("Error al sincronizar:", e); }
+            try { await setDoc(userDocRef, { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastUpdated: Date.now() }); } catch (e) {}
         }
 
         onSnapshot(userDocRef, (doc) => {
@@ -387,37 +299,21 @@
                 totalXP = cloud.totalXP || 0;
                 unlockedTrophies = cloud.unlockedTrophies || {};
                 allLogs = cloud.allLogs || {};
-                
-                if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
-                    applyTheme(cloud.currentTheme);
-                }
-
-                // Guardado aislado
-                localStorage.setItem(`userSchedule_${userId}`, JSON.stringify(userSchedule));
-                localStorage.setItem(`totalXP_${userId}`, totalXP);
-                localStorage.setItem(`procrastiAllLogs_${userId}`, JSON.stringify(allLogs));
-                localStorage.setItem(`procrastiHistory_${userId}`, JSON.stringify(historyData)); 
-                localStorage.setItem(`procrastiTrophies_${userId}`, JSON.stringify(unlockedTrophies)); 
-
+                applyTheme(cloud.currentTheme || currentTheme);
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
             }
         });
 
-        // --- 4. FUNCIONES GLOBALES ---
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('themeToggleBtn').textContent = themeIcons[theme];
-            localStorage.setItem(`procrastiTheme_${userId}`, theme);
             currentTheme = theme;
-            if(document.getElementById('historyTab').classList.contains('active')) { renderChart(); renderPieChart(); }
         }
 
         window.toggleTheme = () => {
-            let currentIndex = themes.indexOf(currentTheme);
-            let nextIndex = (currentIndex + 1) % themes.length;
-            applyTheme(themes[nextIndex]);
-            syncToCloud();
+            let nextIndex = (themes.indexOf(currentTheme) + 1) % themes.length;
+            applyTheme(themes[nextIndex]); syncToCloud();
         };
 
         window.switchTab = (ev, tab) => {
@@ -430,17 +326,9 @@
 
         function updateLevelUI() {
             const level = Math.floor(totalXP / 50) + 1;
-            const xpInLevel = totalXP % 50;
-            const progress = (xpInLevel / 50) * 100;
-            let rank = "🐣 Novato del Enfoque";
-            if(level >= 5) rank = "⚔️ Guerrero";
-            if(level >= 10) rank = "⚡ Maestro";
-            if(level >= 20) rank = "🔥 Titán";
-            if(level >= 40) rank = "👑 Leyenda";
+            const progress = ((totalXP % 50) / 50) * 100;
             document.getElementById('levelBadge').textContent = `Nivel ${level}`;
-            document.getElementById('rankText').textContent = rank;
             document.getElementById('xpBar').style.width = `${progress}%`;
-            localStorage.setItem(`totalXP_${userId}`, totalXP);
         }
 
         function renderSchedule() {
@@ -448,30 +336,10 @@
             if(!container) return;
             container.innerHTML = '';
             userSchedule.sort((a,b) => a.time.localeCompare(b.time));
-            const now = new Date();
-            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-
             userSchedule.forEach((item, index) => {
-                const catClass = `cat-border-${item.category || 'work'}`;
-                const tagClass = `tag-${item.category || 'work'}`;
-                const isCurrent = (item.end && currentTime >= item.time && currentTime <= item.end) && !item.done;
-                
                 const div = document.createElement('div');
-                div.className = `schedule-item ${item.done ? 'task-done' : ''} ${catClass} ${isCurrent ? 'current-task' : ''}`;
-                div.innerHTML = `
-                    <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">
-                            ${item.time} - ${item.end} • 🪙 ${item.points} pts
-                            <span class="category-tag ${tagClass}">${item.category || 'work'}</span>
-                        </div>
-                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
-                    </div>
-                    <div class="action-icons">
-                        <button class="btn" style="padding:5px 10px; background:var(--color-surface); color:var(--color-text-primary);" onclick="toggleTask(${index})">✅</button>
-                        <span onclick="openEditor(${index})">✏️</span>
-                        <span onclick="deleteActivity(${index})">🗑️</span>
-                    </div>
-                `;
+                div.className = `schedule-item ${item.done ? 'task-done' : ''} cat-border-${item.category || 'work'}`;
+                div.innerHTML = `<div><div style="font-size:0.7rem;">${item.time} - ${item.end} • ${item.points} pts</div><div>${item.emoji} ${item.activity}</div></div><div class="action-icons"><button class="btn" style="padding:5px;" onclick="toggleTask(${index})">✅</button><span onclick="deleteActivity(${index})">🗑️</span></div>`;
                 container.appendChild(div);
             });
             updateScore();
@@ -479,28 +347,20 @@
 
         window.toggleTask = (index) => {
             const task = userSchedule[index];
-            const pts = parseFloat(task.points) || 0;
-            if (!task.done) { totalXP += pts; triggerConfetti(); playSound(800, 0.2); }
-            else { totalXP = Math.max(0, totalXP - pts); }
-            task.done = !task.done;
-            renderSchedule(); updateLevelUI(); syncToCloud();
+            if (!task.done) { totalXP += parseFloat(task.points); confetti({ particleCount: 50 }); }
+            else { totalXP = Math.max(0, totalXP - parseFloat(task.points)); }
+            task.done = !task.done; renderSchedule(); updateLevelUI(); syncToCloud();
         };
 
         function updateScore() {
-            let earned = 0, total = 0;
-            userSchedule.forEach(t => { 
-                total += parseFloat(t.points); 
-                if(t.done) earned += parseFloat(t.points); 
-            });
+            let earned = 0; userSchedule.forEach(t => { if(t.done) earned += parseFloat(t.points); });
             document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
             document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
-            const today = new Date().toISOString().split('T')[0];
-            historyData[today] = { earned, total };
-            checkTrophies(earned);
+            historyData[getLocalDateStr()] = { earned, total: 10 };
         }
 
         window.selectLogDate = (dateStr) => {
-            if (!dateStr) return; currentLogDate = dateStr;
+            currentLogDate = dateStr;
             document.getElementById('logDateSelector').value = currentLogDate;
             dailyLogs = allLogs[currentLogDate] || [];
             renderLog();
@@ -509,7 +369,7 @@
         window.changeLogDate = (offset) => {
             let d = new Date(currentLogDate + "T12:00:00");
             d.setDate(d.getDate() + offset);
-            window.selectLogDate(d.toISOString().split('T')[0]);
+            window.selectLogDate(d.toLocaleDateString('en-CA'));
         };
 
         function renderLog() {
@@ -517,308 +377,86 @@
             if(!container) return;
             container.innerHTML = '';
             dailyLogs.forEach((item, index) => {
-                const catClass = `cat-border-${item.category || 'work'}`;
-                const tagClass = `tag-${item.category || 'work'}`;
                 const div = document.createElement('div');
-                div.className = `schedule-item ${catClass}`;
-                div.innerHTML = `
-                    <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span></div>
-                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
-                    </div>
-                    <div class="action-icons">
-                        <span onclick="openLogEditor(${index})">✏️</span>
-                        <span onclick="deleteLogActivity(${index})">🗑️</span>
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-            if(document.getElementById('historyTab').classList.contains('active')) renderPieChart();
-        }
-
-        function checkTrophies(earnedPts) {
-            let newlyUnlocked = false;
-            trophyData.forEach(t => {
-                if (earnedPts >= t.pts && !unlockedTrophies[t.pts]) {
-                    unlockedTrophies[t.pts] = true; newlyUnlocked = true;
-                    setTimeout(() => alert(`🏆 ¡Desbloqueaste: ${t.name}!`), 400);
-                }
-            });
-            if (newlyUnlocked) { renderCollection(); triggerConfetti(); }
-        }
-
-        function renderCollection() {
-            const container = document.getElementById('trophyCase');
-            if(!container) return; container.innerHTML = '';
-            trophyData.forEach(t => {
-                const isUnlocked = unlockedTrophies[t.pts];
-                const div = document.createElement('div');
-                div.className = `trophy-slot ${isUnlocked ? 'unlocked' : ''}`;
-                div.innerHTML = `<div class="trophy-icon">${t.icon}</div><div class="trophy-title">${isUnlocked ? t.name : 'Bloqueado'}</div><div class="trophy-req">${t.pts} pts</div>`;
+                div.className = `schedule-item cat-border-${item.category}`;
+                div.innerHTML = `<div><div style="font-size:0.7rem;">${item.time}</div><div>${item.emoji} ${item.activity}</div></div><span onclick="deleteLogActivity(${index})">🗑️</span>`;
                 container.appendChild(div);
             });
         }
 
-        window.openEditor = (index = -1) => {
-            editingIndex = index; document.getElementById('editModal').style.display = 'flex';
-            if(index >= 0) {
-                const t = userSchedule[index];
-                document.getElementById('editActivity').value = t.activity;
-                document.getElementById('editPoints').value = t.points;
-                document.getElementById('editStart').value = t.time;
-                document.getElementById('editEnd').value = t.end;
-                document.getElementById('editCategory').value = t.category || 'work';
-                selectedEmoji = t.emoji;
-            } else { document.getElementById('editActivity').value = ''; }
-            updateEmojiSelection('edit');
-        };
-
-        window.closeEditor = () => { document.getElementById('editModal').style.display = 'none'; };
-        
+        window.openEditor = () => { document.getElementById('editModal').style.display='flex'; };
+        window.closeEditor = () => { document.getElementById('editModal').style.display='none'; };
         window.saveActivity = () => {
-            const name = document.getElementById('editActivity').value;
-            const start = document.getElementById('editStart').value;
-            const end = document.getElementById('editEnd').value;
-            const cat = document.getElementById('editCategory').value;
-            const pts = parseFloat(document.getElementById('editPoints').value) || 0;
-            if(!name || !start) return;
-            const obj = { activity: name, time: start, end: end, emoji: selectedEmoji, points: pts, category: cat, done: false };
-            if(editingIndex >= 0) userSchedule[editingIndex] = {...obj, done: userSchedule[editingIndex].done};
-            else userSchedule.push(obj);
-            renderSchedule(); window.closeEditor(); syncToCloud();
+            const obj = { activity: document.getElementById('editActivity').value, time: document.getElementById('editStart').value, end: document.getElementById('editEnd').value, emoji: selectedEmoji, points: document.getElementById('editPoints').value, category: document.getElementById('editCategory').value, done: false };
+            userSchedule.push(obj); renderSchedule(); window.closeEditor(); syncToCloud();
         };
 
-        window.deleteActivity = (index) => { userSchedule.splice(index, 1); renderSchedule(); syncToCloud(); };
-        window.resetDay = () => { userSchedule.forEach(t => t.done = false); renderSchedule(); syncToCloud(); };
-
-        window.openLogEditor = (index = -1) => {
-            logEditingIndex = index; document.getElementById('logModal').style.display = 'flex';
-            if(index >= 0) {
-                const t = dailyLogs[index];
-                document.getElementById('logActivity').value = t.activity;
-                document.getElementById('logPoints').value = t.points;
-                document.getElementById('logTime').value = t.time;
-                document.getElementById('logCategory').value = t.category || 'work';
-                logSelectedEmoji = t.emoji;
-            } else { 
-                document.getElementById('logActivity').value = ''; 
-                const now = new Date();
-                document.getElementById('logTime').value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-            }
-            updateEmojiSelection('log');
+        window.openLogEditor = () => {
+            document.getElementById('logModal').style.display='flex';
+            document.getElementById('logTime').value = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false});
         };
-
-        window.closeLogEditor = () => { document.getElementById('logModal').style.display = 'none'; };
-
+        window.closeLogEditor = () => { document.getElementById('logModal').style.display='none'; };
         window.saveLogActivity = () => {
-            const name = document.getElementById('logActivity').value;
-            const start = document.getElementById('logTime').value;
-            const cat = document.getElementById('logCategory').value;
-            const pts = parseFloat(document.getElementById('logPoints').value) || 0;
-            if(!name || !start) return;
-            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: pts, category: cat };
-            if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
-            else dailyLogs.push(obj);
-            allLogs[currentLogDate] = dailyLogs;
-            triggerConfetti(); renderLog(); window.closeLogEditor(); syncToCloud();
+            const obj = { activity: document.getElementById('logActivity').value, time: document.getElementById('logTime').value, emoji: logSelectedEmoji, points: document.getElementById('logPoints').value, category: document.getElementById('logCategory').value };
+            dailyLogs.push(obj); allLogs[currentLogDate] = dailyLogs; renderLog(); window.closeLogEditor(); syncToCloud();
         };
 
-        window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
+        window.deleteActivity = (index) => { userSchedule.splice(index,1); renderSchedule(); syncToCloud(); };
+        window.deleteLogActivity = (index) => { dailyLogs.splice(index,1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- POMODORO ESTÁNDAR ---
+        // --- POMODORO ---
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
             document.getElementById('timerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
         }
-        
-        function renderDots() {
-            const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value);
-            c.innerHTML = '';
-            for(let i=1; i<=tot; i++) {
-                const d = document.createElement('div');
-                d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
-                c.appendChild(d);
-            }
-            document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
-        }
-
-        window.savePomoSettings = () => { 
-            localStorage.setItem(`pomoStudy_${userId}`, document.getElementById('studyMin').value);
-            localStorage.setItem(`pomoRest_${userId}`, document.getElementById('restMin').value);
-            localStorage.setItem(`pomoCycles_${userId}`, document.getElementById('totalCycles').value);
-            window.resetTimer(); 
-        };
-
-        window.toggleTimer = () => {
-            if(isRunning) { clearInterval(timerId); isRunning = false; document.getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
-            else {
-                isRunning = true; document.getElementById('startBtn').textContent = "⏸️ Pausar"; document.body.classList.add('deep-focus');
-                timerId = setInterval(() => {
-                    timeLeft--; updateDisplay();
-                    if(timeLeft <= 0) handlePhaseEnd();
-                }, 1000);
-            }
-        };
-
         window.resetTimer = () => {
-            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
-            
-            const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
-            document.getElementById('studyMin').value = sMin;
-            document.getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
-            document.getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
-            
-            timeLeft = sMin * 60;
-            document.getElementById('pomoStatus').textContent = "Listo para Empezar";
-            document.getElementById('pomoCard').classList.remove('mode-rest');
-            document.getElementById('startBtn').textContent = "▶️ Empezar";
+            timeLeft = document.getElementById('studyMin').value * 60;
             updateDisplay(); renderDots();
         };
-
+        function renderDots() {
+            const c = document.getElementById('cycleDots'), tot = document.getElementById('totalCycles').value;
+            if(!c) return;
+            c.innerHTML = ''; for(let i=1; i<=tot; i++) { const d = document.createElement('div'); d.className = `dot ${i < currentCycle ? 'completed' : (i==currentCycle ? 'active' : '')}`; c.appendChild(d); }
+        }
+        window.toggleTimer = () => {
+            if(isRunning) { clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus'); }
+            else { isRunning = true; document.body.classList.add('deep-focus'); timerId = setInterval(() => { timeLeft--; updateDisplay(); if(timeLeft <= 0) handlePhaseEnd(); }, 1000); }
+        };
         function handlePhaseEnd() {
             clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
-            playAlarm();
-            const total = parseInt(document.getElementById('totalCycles').value);
             if(currentMode === 'study') {
-                const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-                const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
-                if(activeTask) {
-                    if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
-                    allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
-                    syncToCloud(); renderLog();
-                }
-                if(currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
                 currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "☕ Descanso";
-                document.getElementById('pomoCard').classList.add('mode-rest');
             } else {
                 currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "✍️ Estudio";
-                document.getElementById('pomoCard').classList.remove('mode-rest');
             }
-            renderDots(); updateDisplay(); window.toggleTimer();
+            updateDisplay(); renderDots(); window.toggleTimer();
         }
 
-        function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
-        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
-        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
-
-        window.renderChart = () => {
-            const rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
-            const ctx = document.getElementById('historyChart').getContext('2d');
-            let labels = [], data = [];
-            if (rangeType === 7 || rangeType === 30) {
-                for(let i=rangeType-1; i>=0; i--) {
-                    const d = new Date(); d.setDate(d.getDate()-i);
-                    const s = d.toISOString().split('T')[0];
-                    labels.push(s.split('-')[2] + '/' + s.split('-')[1]);
-                    data.push(historyData[s] ? historyData[s].earned : 0);
-                }
-            }
-            if(chartInstance) chartInstance.destroy();
-            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
-            chartInstance = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label: 'Puntos', data, backgroundColor: accentColor, borderRadius: 5 }] } });
-        };
-
-        window.renderPieChart = () => {
-            const ctxPie = document.getElementById('categoryPieChart').getContext('2d');
-            let catPoints = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
-            let hasData = false;
-            dailyLogs.forEach(t => { catPoints[t.category || 'work'] += parseFloat(t.points) || 0; hasData = true; });
-            const msgEl = document.getElementById('emptyPieMsg');
-            const canvasEl = document.getElementById('categoryPieChart');
-            if (!hasData) { msgEl.style.display = 'block'; canvasEl.style.display = 'none'; return; } 
-            else { msgEl.style.display = 'none'; canvasEl.style.display = 'block'; }
-            if(pieChartInstance) pieChartInstance.destroy();
-            const bgColors = [
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-work').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-study').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
-                getComputedStyle(document.documentElement).getPropertyValue('--cat-chores').trim()
-            ];
-            pieChartInstance = new Chart(ctxPie, { type: 'doughnut', data: { labels: ['💼', '📚', '🍏', '🎮', '🏠'], datasets: [{ data: [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores], backgroundColor: bgColors }] } });
-        };
-
-        window.exportData = () => {
-            const data = { userSchedule, allLogs, historyData, totalXP, unlockedTrophies };
-            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-            a.download = `ProcrastiNever_${userId}_Backup.json`; a.click();
-        };
-
-        window.importData = (event) => {
-            const file = event.target.files[0]; const reader = new FileReader();
-            reader.onload = (e) => {
-                const data = JSON.parse(e.target.result);
-                userSchedule = data.userSchedule || []; allLogs = data.allLogs || {};
-                totalXP = data.totalXP || 0; unlockedTrophies = data.unlockedTrophies || {};
-                syncToCloud(); location.reload();
-            };
-            reader.readAsText(file);
-        };
-
-        function updateEmojiSelection(type) {
-            if(type === 'edit') document.querySelectorAll('#emojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === selectedEmoji));
-            if(type === 'log') document.querySelectorAll('#logEmojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === logSelectedEmoji));
+        // --- INSTALL PWA ---
+        let deferredPrompt;
+        const installBtn = document.getElementById('installAppBtn');
+        window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; if(installBtn) installBtn.style.display = 'block'; });
+        if(installBtn) {
+            installBtn.addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; installBtn.style.display = 'none'; } });
         }
 
+        // --- INICIO ---
         function renderEmojiPickers() {
-            const picker1 = document.getElementById('emojiPicker'); const picker2 = document.getElementById('logEmojiPicker');
+            const p1 = document.getElementById('emojiPicker'), p2 = document.getElementById('logEmojiPicker');
             emojis.forEach(e => {
-                const s1 = document.createElement('span'); s1.className='emoji-option'; s1.textContent = e;
-                s1.onclick = () => { selectedEmoji = e; updateEmojiSelection('edit'); }; picker1.appendChild(s1);
-                const s2 = document.createElement('span'); s2.className='emoji-option'; s2.textContent = e;
-                s2.onclick = () => { logSelectedEmoji = e; updateEmojiSelection('log'); }; picker2.appendChild(s2);
+                const s1 = document.createElement('span'); s1.textContent=e; s1.className='emoji-option'; s1.onclick=() => selectedEmoji=e; p1.appendChild(s1);
+                const s2 = document.createElement('span'); s2.textContent=e; s2.className='emoji-option'; s2.onclick=() => logSelectedEmoji=e; p2.appendChild(s2);
             });
         }
 
         function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-        
-        // --- 5. INICIALIZACIÓN ---
-        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
-        renderCollection(); renderSchedule(); renderLog(); window.resetTimer();
-        
-        const greetingElement = document.getElementById('welcomeMessage');
-        if (greetingElement) {
-            const greetings = [ `¡Qué bueno verte otra vez, ${userId}!`, `Bienvenido de nuevo, ${userId}. ¿Qué vamos a lograr hoy?`, `Sesión activa: ${userId}. ¡A darle con todo!` ];
-            greetingElement.textContent = greetings[Math.floor(Math.random() * greetings.length)];
-        }
 
+        // Inicialización
+        document.getElementById('logDateSelector').value = currentLogDate;
+        renderEmojiPickers(); renderSchedule(); renderLog(); window.resetTimer();
         setInterval(updateClock, 1000); updateClock();
-        setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
-
-        // --- 6. PWA INSTALL PROMPT ---
-        let deferredPrompt;
-        const installBtn = document.getElementById('installAppBtn');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevenir que el prompt automático se muestre en navegadores antiguos
-            e.preventDefault();
-            // Guardar el evento para dispararlo cuando el usuario haga clic en el botón
-            deferredPrompt = e;
-            // Mostrar el botón de instalación (el icono de 📥)
-            if(installBtn) installBtn.style.display = 'block';
-        });
-
-        if(installBtn) {
-            installBtn.addEventListener('click', async () => {
-                if (deferredPrompt) {
-                    // Mostrar el aviso del sistema para instalar la app
-                    deferredPrompt.prompt();
-                    // Esperar a que el usuario acepte o rechace
-                    const { outcome } = await deferredPrompt.userChoice;
-                    console.log(`Respuesta a la instalación: ${outcome}`);
-                    // Limpiar el evento guardado
-                    deferredPrompt = null;
-                    installBtn.style.display = 'none';
-                }
-            });
-        }
-
-        window.addEventListener('appinstalled', () => {
-            // Si la PWA se instala exitosamente, escondemos el botón
-            if(installBtn) installBtn.style.display = 'none';
-            console.log('ProcrastiNever instalada exitosamente');
-        });
+        const greetingElement = document.getElementById('welcomeMessage');
+        if (greetingElement) greetingElement.textContent = `¡Hola ${userId}, listo para hoy?`;
     </script>
 </body>
 </html>
