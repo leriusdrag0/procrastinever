@@ -635,35 +635,49 @@
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- POMODORO ESTÁNDAR ---
+        // --- LÓGICA DEL POMODORO CON SOPORTE PARA MODO MINI ---
+        const getDoc = () => (pipWindow && pipWindow.document) ? pipWindow.document : document;
+
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-            document.getElementById('timerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+            const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
+            const display = getDoc().getElementById('timerDisplay');
+            if (display) display.textContent = timeStr;
         }
         
         function renderDots() {
-            const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value);
-            c.innerHTML = '';
+            const doc = getDoc();
+            const container = doc.getElementById('cycleDots');
+            const totalInput = doc.getElementById('totalCycles');
+            if(!container || !totalInput) return;
+
+            const tot = parseInt(totalInput.value);
+            container.innerHTML = '';
             for(let i=1; i<=tot; i++) {
-                const d = document.createElement('div');
+                const d = doc.createElement('div');
                 d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
-                c.appendChild(d);
+                container.appendChild(d);
             }
-            document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
+            const cycleText = doc.getElementById('cycleText');
+            if (cycleText) cycleText.textContent = `Ciclo ${currentCycle} / ${tot}`;
         }
 
-        window.savePomoSettings = () => { 
-            localStorage.setItem(`pomoStudy_${userId}`, document.getElementById('studyMin').value);
-            localStorage.setItem(`pomoRest_${userId}`, document.getElementById('restMin').value);
-            localStorage.setItem(`pomoCycles_${userId}`, document.getElementById('totalCycles').value);
-            window.resetTimer(); 
-        };
-
         window.toggleTimer = () => {
-            if(isRunning) { clearInterval(timerId); isRunning = false; document.getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
+            const doc = getDoc();
+            const startBtn = doc.getElementById('startBtn');
+            const brainDump = doc.getElementById('brainDumpContainer');
+
+            if(isRunning) { 
+                clearInterval(timerId); 
+                isRunning = false; 
+                if (startBtn) startBtn.textContent = "▶️ Reanudar"; 
+                document.body.classList.remove('deep-focus'); 
+            }
             else {
-                isRunning = true; document.getElementById('startBtn').textContent = "⏸️ Pausar"; document.body.classList.add('deep-focus');
-                if(currentMode === 'study') document.getElementById('brainDumpContainer').style.display = 'block';
+                isRunning = true; 
+                if (startBtn) startBtn.textContent = "⏸️ Pausar"; 
+                document.body.classList.add('deep-focus');
+                if(currentMode === 'study' && brainDump) brainDump.style.display = 'block';
                 timerId = setInterval(() => {
                     timeLeft--; updateDisplay();
                     if(timeLeft <= 0) handlePhaseEnd();
@@ -672,105 +686,84 @@
         };
 
         window.resetTimer = () => {
-            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
+            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; 
+            document.body.classList.remove('deep-focus');
             
+            const doc = getDoc();
             const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
-            document.getElementById('studyMin').value = sMin;
-            document.getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
-            document.getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+            
+            // Actualizar inputs si existen (pueden estar ocultos en PiP)
+            const inputs = {
+                study: doc.getElementById('studyMin'),
+                rest: doc.getElementById('restMin'),
+                cycles: doc.getElementById('totalCycles')
+            };
+            if (inputs.study) inputs.study.value = sMin;
+            if (inputs.rest) inputs.rest.value = localStorage.getItem(`pomoRest_${userId}`) || 5;
+            if (inputs.cycles) inputs.cycles.value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
             
             timeLeft = sMin * 60;
-            document.getElementById('pomoStatus').textContent = "Listo para Empezar";
-            document.getElementById('pomoCard').classList.remove('mode-rest');
-            document.getElementById('startBtn').textContent = "▶️ Empezar";
-            document.getElementById('brainDumpContainer').style.display = 'none';
+            const statusEl = doc.getElementById('pomoStatus');
+            const cardEl = doc.getElementById('pomoCard');
+            const startBtn = doc.getElementById('startBtn');
+            const brainDump = doc.getElementById('brainDumpContainer');
+
+            if (statusEl) statusEl.textContent = "Listo para Empezar";
+            if (cardEl) cardEl.classList.remove('mode-rest');
+            if (startBtn) startBtn.textContent = "▶️ Empezar";
+            if (brainDump) brainDump.style.display = 'none';
+            
             updateDisplay(); renderDots();
         };
 
         function handlePhaseEnd() {
             clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
             playAlarm();
-            const total = parseInt(document.getElementById('totalCycles').value);
+            
+            const doc = getDoc();
+            const total = parseInt(doc.getElementById('totalCycles')?.value || 4);
+            const statusEl = doc.getElementById('pomoStatus');
+            const cardEl = doc.getElementById('pomoCard');
+            const brainDump = doc.getElementById('brainDumpContainer');
+
             if(currentMode === 'study') {
-                const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                const now = new Date(); 
+                const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                
                 if(activeTask) {
                     if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
-                    allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                    allLogs[currentLogDate].push({ 
+                        activity: activeTask.activity + " (Pomo)", 
+                        time: currentTime, 
+                        emoji: activeTask.emoji, 
+                        points: activeTask.points, 
+                        category: activeTask.category 
+                    });
                     syncToCloud(); renderLog();
                 }
-                if(currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
-                currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "☕ Descanso";
-                document.getElementById('pomoCard').classList.add('mode-rest');
-                document.getElementById('brainDumpContainer').style.display = 'none';
+                
+                if(currentCycle >= total) { 
+                    alert("¡Sesión completa!"); 
+                    window.resetTimer(); 
+                    return; 
+                }
+                
+                currentMode = 'rest'; 
+                timeLeft = (doc.getElementById('restMin')?.value || 5) * 60;
+                if (statusEl) statusEl.textContent = "☕ Descanso";
+                if (cardEl) cardEl.classList.add('mode-rest');
+                if (brainDump) brainDump.style.display = 'none';
             } else {
-                currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "✍️ Estudio";
-                document.getElementById('pomoCard').classList.remove('mode-rest');
-                document.getElementById('brainDumpContainer').style.display = 'block';
+                currentMode = 'study'; 
+                currentCycle++; 
+                timeLeft = (doc.getElementById('studyMin')?.value || 25) * 60;
+                if (statusEl) statusEl.textContent = "✍️ Estudio";
+                if (cardEl) cardEl.classList.remove('mode-rest');
+                if (brainDump) brainDump.style.display = 'block';
             }
             renderDots(); updateDisplay(); window.toggleTimer();
         }
-
-        // --- FUNCION PICTURE IN PICTURE (SIEMPRE ARRIBA) ---
-        window.togglePiP = async () => {
-            if (!('documentPictureInPicture' in window)) {
-                alert("Tu navegador actual no soporta el 'Modo Mini'. Usa Brave, Chrome o Edge en tu PC, o las 'Ventanas Flotantes' de Xiaomi en tu celular.");
-                return;
-            }
-
-            if (pipWindow) {
-                pipWindow.close();
-                return;
-            }
-
-            const pomoCard = document.getElementById('pomoCard');
-
-            try {
-                // Abre una ventana limpia de 320x320
-                pipWindow = await documentPictureInPicture.requestWindow({ width: 320, height: 320 });
-
-                // Copiar las hojas de estilo al mini-reproductor
-                [...document.styleSheets].forEach((styleSheet) => {
-                    try {
-                        const cssRules = [...styleSheet.cssRules].map((rule) => rule.cssText).join('');
-                        const style = document.createElement('style');
-                        style.textContent = cssRules;
-                        pipWindow.document.head.appendChild(style);
-                    } catch (e) {
-                        const link = document.createElement('link');
-                        link.rel = 'stylesheet';
-                        link.type = styleSheet.type;
-                        link.media = styleSheet.media;
-                        link.href = styleSheet.href;
-                        pipWindow.document.head.appendChild(link);
-                    }
-                });
-
-                // Prepara el cuerpo de la nueva ventana
-                pipWindow.document.body.setAttribute('data-theme', currentTheme);
-                pipWindow.document.body.style.display = 'flex';
-                pipWindow.document.body.style.alignItems = 'center';
-                pipWindow.document.body.style.justifyContent = 'center';
-                pipWindow.document.body.style.margin = '0';
-                pipWindow.document.body.style.height = '100vh';
-                pipWindow.document.body.style.background = 'var(--color-bg-primary)';
-
-                // Mueve la tarjeta y oculta extras
-                pomoCard.classList.add('pip-mode');
-                pipWindow.document.body.appendChild(pomoCard);
-
-                // Evento para cuando el usuario cierra el mini-reproductor
-                pipWindow.addEventListener("pagehide", () => {
-                    pomoCard.classList.remove('pip-mode');
-                    document.getElementById('pomodoroTab').appendChild(pomoCard);
-                    pipWindow = null;
-                });
-            } catch (error) {
-                console.error("No se pudo iniciar PiP", error);
-            }
-        };
 
         function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
         function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
