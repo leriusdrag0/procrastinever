@@ -415,7 +415,7 @@
         let dailyLogs = allLogs[currentLogDate] || [];
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
-        let pipWindow = null; // Variable para la ventana PiP
+        let pipWindow = null; 
 
         const trophyData = [
             { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
@@ -475,7 +475,7 @@
             localStorage.setItem(`procrastiTheme_${userId}`, theme);
             currentTheme = theme;
             if(document.getElementById('historyTab').classList.contains('active')) { renderChart(); renderPieChart(); }
-            if(pipWindow) pipWindow.document.body.setAttribute('data-theme', theme); // Sincroniza tema en PiP
+            if(pipWindow) pipWindow.document.body.setAttribute('data-theme', theme); 
         }
 
         window.toggleTheme = () => {
@@ -690,9 +690,21 @@
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- LÓGICA DE POMODORO CON SOPORTE PARA MODO MINI (PiP) ---
+        // --- LÓGICA DE POMODORO CORREGIDA Y COMPLETADA ---
         const pomoCard = document.getElementById('pomoCard');
         const getPomoUI = (selector) => pomoCard.querySelector(selector);
+
+        window.savePomoSettings = () => { 
+            const studyInput = getPomoUI('#studyMin');
+            const restInput = getPomoUI('#restMin');
+            const cyclesInput = getPomoUI('#totalCycles');
+            
+            if (studyInput) localStorage.setItem(`pomoStudy_${userId}`, studyInput.value);
+            if (restInput) localStorage.setItem(`pomoRest_${userId}`, restInput.value);
+            if (cyclesInput) localStorage.setItem(`pomoCycles_${userId}`, cyclesInput.value);
+            
+            window.resetTimer(); 
+        };
 
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
@@ -707,8 +719,11 @@
             
             const tot = totalInput ? parseInt(totalInput.value) : 4;
             container.innerHTML = '';
+            
+            const docToUse = pipWindow ? pipWindow.document : document;
+
             for(let i=1; i<=tot; i++) {
-                const d = document.createElement('div');
+                const d = docToUse.createElement('div');
                 d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
                 container.appendChild(d);
             }
@@ -720,7 +735,6 @@
             const startBtn = getPomoUI('#startBtn');
             const brainDump = getPomoUI('#brainDumpContainer');
             
-            // Pedir permiso de notificación al interactuar por primera vez
             if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission();
             }
@@ -746,15 +760,28 @@
         window.resetTimer = () => {
             clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1;
             document.body.classList.remove('deep-focus');
+            
             const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
             timeLeft = sMin * 60;
             
+            const studyInput = getPomoUI('#studyMin');
+            const restInput = getPomoUI('#restMin');
+            const cyclesInput = getPomoUI('#totalCycles');
+            
+            if (studyInput) studyInput.value = sMin;
+            if (restInput) restInput.value = localStorage.getItem(`pomoRest_${userId}`) || 5;
+            if (cyclesInput) cyclesInput.value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+
             const status = getPomoUI('#pomoStatus');
             if(status) status.textContent = "Listo para Empezar";
             pomoCard.classList.remove('mode-rest');
+            
             const startBtn = getPomoUI('#startBtn');
             if(startBtn) startBtn.textContent = "▶️ Empezar";
             
+            const brainDump = getPomoUI('#brainDumpContainer');
+            if (brainDump) brainDump.style.display = 'none';
+
             updateDisplay(); renderDots();
         };
 
@@ -762,8 +789,9 @@
             clearInterval(timerId); isRunning = false;
             const status = getPomoUI('#pomoStatus');
             const total = parseInt(getPomoUI('#totalCycles')?.value || 4);
+            const brainDump = getPomoUI('#brainDumpContainer');
 
-            playAlarm(); // Activa la alerta sonora automáticamente
+            playAlarm(); 
 
             if(currentMode === 'study') {
                 if(currentCycle >= total) { 
@@ -775,11 +803,13 @@
                 currentMode = 'rest'; timeLeft = (getPomoUI('#restMin')?.value || 5) * 60;
                 if(status) status.textContent = "☕ Descanso";
                 pomoCard.classList.add('mode-rest');
+                if(brainDump) brainDump.style.display = 'none';
                 notifyUser("¡Tiempo de descanso!", `Tómate ${getPomoUI('#restMin')?.value || 5} minutos.`);
             } else {
                 currentMode = 'study'; currentCycle++; timeLeft = (getPomoUI('#studyMin')?.value || 25) * 60;
                 if(status) status.textContent = "✍️ Estudio";
                 pomoCard.classList.remove('mode-rest');
+                if(brainDump) brainDump.style.display = 'block';
                 notifyUser("¡A enfocarse!", "Es hora de volver al estudio.");
             }
             renderDots(); updateDisplay(); window.toggleTimer();
@@ -914,23 +944,17 @@
         const installBtn = document.getElementById('installAppBtn');
 
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevenir que el prompt automático se muestre en navegadores antiguos
             e.preventDefault();
-            // Guardar el evento para dispararlo cuando el usuario haga clic en el botón
             deferredPrompt = e;
-            // Mostrar el botón de instalación (el icono de 📥)
             if(installBtn) installBtn.style.display = 'block';
         });
 
         if(installBtn) {
             installBtn.addEventListener('click', async () => {
                 if (deferredPrompt) {
-                    // Mostrar el aviso del sistema para instalar la app
                     deferredPrompt.prompt();
-                    // Esperar a que el usuario acepte o rechace
                     const { outcome } = await deferredPrompt.userChoice;
                     console.log(`Respuesta a la instalación: ${outcome}`);
-                    // Limpiar el evento guardado
                     deferredPrompt = null;
                     installBtn.style.display = 'none';
                 }
@@ -938,7 +962,6 @@
         }
 
         window.addEventListener('appinstalled', () => {
-            // Si la PWA se instala exitosamente, escondemos el botón
             if(installBtn) installBtn.style.display = 'none';
             console.log('ProcrastiNever instalada exitosamente');
         });
