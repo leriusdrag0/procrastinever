@@ -367,13 +367,31 @@
         const db = getFirestore(app);
 
         const params = new URLSearchParams(window.location.search);
-        let userId = params.get('user');
+        let urlUser = params.get('user');
+        let userId = urlUser;
 
         if (userId) {
             localStorage.setItem('procrastiActiveUser', userId);
         } else {
             userId = localStorage.getItem('procrastiActiveUser') || 'Invitado';
         }
+
+        function updateGreeting() {
+            const h1 = document.querySelector('h1');
+            const welcomeMsg = document.getElementById('welcomeMessage');
+            if (!urlUser || urlUser.trim() === '') {
+                h1.textContent = '¿Qué haces aquí?';
+                welcomeMsg.textContent = '';
+            } else {
+                h1.textContent = '🎴 ProcrastiNever';
+                const hour = new Date().getHours();
+                let greeting = 'Buenas noches';
+                if (hour >= 5 && hour < 12) greeting = 'Buenos días';
+                else if (hour >= 12 && hour < 19) greeting = 'Buenas tardes';
+                welcomeMsg.textContent = `${greeting}, ${urlUser}`;
+            }
+        }
+        updateGreeting();
 
         const userDocRef = doc(db, "userData", userId);
 
@@ -474,7 +492,7 @@
                 localStorage.setItem(`procrastiHistory_${userId}`, JSON.stringify(historyData)); 
                 localStorage.setItem(`procrastiTrophies_${userId}`, JSON.stringify(unlockedTrophies)); 
                 dailyLogs = allLogs[currentLogDate] || [];
-                renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
+                renderSchedule(); updateLevelUI(); window.renderLog(); renderCollection();
             }
         });
 
@@ -528,30 +546,54 @@
 
         window.toggleTask = (index) => {
             const task = userSchedule[index];
-            if (!task.done) { totalXP += parseFloat(task.points); triggerConfetti(); playSound(800, 0.2); }
-            else { totalXP = Math.max(0, totalXP - parseFloat(task.points)); }
+            if (!task.done) { 
+                totalXP += parseFloat(task.points); 
+                triggerConfetti(); 
+                playSound(800, 0.2); 
+                
+                if (!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
+                allLogs[currentLogDate].push({
+                    activity: task.activity,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    emoji: task.emoji,
+                    points: task.points,
+                    category: task.category
+                });
+            } else { 
+                totalXP = Math.max(0, totalXP - parseFloat(task.points)); 
+            }
             task.done = !task.done;
-            renderSchedule(); updateLevelUI(); syncToCloud();
+            renderSchedule(); 
+            updateLevelUI(); 
+            window.renderLog();
+            syncToCloud();
         };
 
         function updateScore() {
-            let earned = 0; userSchedule.forEach(t => { if(t.done) earned += parseFloat(t.points); });
+            let earned = 0; 
+            userSchedule.forEach(t => { if(t.done) earned += parseFloat(t.points); });
+            
+            if (earned > 10.0) {
+                earned = 10.0;
+            }
+
             document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
             document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
             historyData[currentLogDate] = { earned };
             checkTrophies(earned);
         }
 
-        function renderLog() {
+        window.renderLog = function() {
             const container = document.getElementById('logContainer');
             if(!container) return; container.innerHTML = '';
+            dailyLogs = allLogs[currentLogDate] || [];
             dailyLogs.forEach((item, index) => {
                 const div = document.createElement('div');
                 div.className = `schedule-item cat-border-${item.category}`;
                 div.innerHTML = `<div><div style="font-size:0.7rem;">${item.time} <span class="category-tag tag-${item.category}">${item.category}</span></div><div style="font-weight:bold;">${item.emoji} ${item.activity}</div></div><div class="action-icons"><span onclick="openLogEditor(${index})">✏️</span><span onclick="deleteLogActivity(${index})">🗑️</span></div>`;
                 container.appendChild(div);
             });
-        }
+        };
 
         function checkTrophies(earnedPts) {
             trophyData.forEach(t => {
@@ -739,7 +781,7 @@
         function updateClock() { document.getElementById('miniClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
         
         // Inicialización
-        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers(); renderCollection(); renderSchedule(); renderLog(); 
+        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers(); renderCollection(); renderSchedule(); window.renderLog(); 
         window.resetTimer();
         setInterval(updateClock, 1000); updateClock();
 
