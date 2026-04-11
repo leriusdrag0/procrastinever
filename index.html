@@ -142,42 +142,6 @@
 
         body.deep-focus .header, body.deep-focus .tabs { display: none !important; }
         body.deep-focus { padding-top: 10vh; }
-
-        /* ESTILOS PARA EL MODO MINI (PICTURE-IN-PICTURE) */
-        .pip-mode { 
-            border: none !important; 
-            box-shadow: none !important; 
-            padding: 15px !important; 
-            background: var(--color-bg-primary) !important;
-            height: 100vh;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-        }
-        .pip-mode .pomo-config, .pip-mode #pipBtn, .pip-mode #cycleDots, .pip-mode #cycleText { 
-            display: none !important; 
-        }
-        .pip-mode #timerDisplay { 
-            font-size: 3.5rem !important; 
-            margin: 0 !important; 
-            line-height: 1;
-        }
-        .pip-mode #pomoStatus { 
-            font-size: 1.1rem !important; 
-            margin-bottom: 5px !important; 
-        }
-        .pip-mode #brainDumpContainer { 
-            display: flex !important; 
-            flex-direction: column; 
-            flex-grow: 1; 
-            margin-top: 10px !important; 
-        }
-        .pip-mode #brainDumpInput { 
-            flex-grow: 1; 
-            resize: none; 
-            font-size: 0.9rem !important; 
-            height: auto !important; 
-        }
     </style>
 </head>
 <body>
@@ -220,7 +184,7 @@
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(-1)">◀</button>
             <input type="date" id="logDateSelector" style="padding: 8px; border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); border: 1px solid var(--color-border); font-weight: bold;" onchange="selectLogDate(this.value)">
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(1)">▶</button>
-            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date().toISOString().split('T')[0])">Hoy</button>
+            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0])">Hoy</button>
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -244,11 +208,6 @@
                 <div><label>Descanso</label><input type="number" id="restMin" value="5" onchange="savePomoSettings()"></div>
                 <div><label>Ciclos</label><input type="number" id="totalCycles" value="4" onchange="savePomoSettings(); renderDots();"></div>
             </div>
-            <div id="brainDumpContainer" style="display: none; margin-top: 20px; text-align: left;">
-                <label style="font-size: 0.8rem; font-weight: bold; color: var(--color-text-secondary); margin-bottom: 5px; display: block;">🧠 Pensamientos intrusivos / Pendientes:</label>
-                <textarea id="brainDumpInput" placeholder="Anota aquí lo que te distraiga..." style="width: 100%; height: 80px; padding: 10px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-bg-secondary); color: var(--color-text-primary); resize: none; font-family: inherit; font-size: 0.85rem;" oninput="saveBrainDump()"></textarea>
-            </div>
-            <button class="btn btn-outline" id="pipBtn" onclick="togglePiP()" style="margin-top: 15px; width: 100%; font-size: 0.8rem;">📌 Modo Mini (Siempre Visible)</button>
         </div>
     </div>
 
@@ -386,7 +345,7 @@
         let unlockedTrophies = JSON.parse(localStorage.getItem(`procrastiTrophies_${userId}`)) || {};
         let allLogs = JSON.parse(localStorage.getItem(`procrastiAllLogs_${userId}`)) || {};
         let currentTheme = localStorage.getItem(`procrastiTheme_${userId}`) || 'light';
-        let currentLogDate = new Date().toISOString().split('T')[0];
+        let currentLogDate = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
@@ -399,30 +358,24 @@
             { pts: 600, icon: '🌟', name: 'Estrella Absoluta' }, { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
         ];
         
-        const emojis = [
-            // MEDICINA GENERAL, CIENCIA Y ESPECIALIDADES
-            '🤰', '🤱', '🍼', '👶', '🧸', '🐣', '🚼', '🏩', '🎀', '👣',
-            '🩺', '🧠', '🫀', '🫁', '🦴', '🦷', '🧬', '🔬', '💉', '💊', 
-            '🩹', '🌡️', '🏥', '🚑', '🧪', '⚕️', '📋', '🦠', '🩸', '👁️', 
-            '👂', '👃', '👅', '🧤', '🧼', '🧖', '🧑‍⚕️', '👩‍⚕️', '🩻', '☣️', 
-            '⚠️', '🧴', '😷', '🫄', '🎗️',
-
-            // LABORES DOMÉSTICAS (Limpieza y Hogar)
-            '🧹', '🧺', '🧽', '🚿', '🛁', '🪣', '🪠', '👕', '👖', 
-            '👗', '👔', '🧦', '👟', '🛌', '🛏️', '🏠', '🔑', '🚪',
-            '🔌', '🗑️', '🔨', '🛠️', '📦', '🏮', '🛋️', '🖼️', '🪴',
-
-            // COCINA Y NUTRICIÓN
-            '🍳', '🍲', '🥗', '🍎', '🥦', '🍗', '🥤', '☕', '🥛', '🔪',
-            '🍴', '🍽️', '🍱', '🥣', '🛒', '🍓', '🍌', '🥑', '🍞',
-
-            // ESTUDIO Y PRODUCTIVIDAD
-            '📚', '📖', '📝', '✏️', '🖋️', '📒', '💻', '🖥️', '⌨️', '🖱️',
-            '💡', '🤔', '🧐', '🏫', '🎓', '📅', '📌', '📊', '📈', '📉',
-
-            // BIENESTAR, EJERCICIO Y RECOMPENSAS
-            '🏃', '🧘', '💪', '🚴', '🚶', '💤', '🔋', '🏆', '💎', '🔥',
-            '🌟', '🚀', '🎯', '✅', '🎮', '📸', '🎨', '🎵', '☀️', '🌈'
+       const emojis = [
+            // Originales y Productividad
+            '📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', 
+            '💧', '💤', '💪', '🛒', '📝', '🧠', '🛠️', '🌱', '🎵', '🏆',
+            '🧪', '🍿', '🧗', '🛹', '🧶', '📸', '🗺️', '🧸', '🔋', '🛸',
+            '🪐', '🎭', '🥊', '🍣', '🍦', '🚲', '⏰', '💎', '🔥', '✨',
+            // Salud y Deporte
+            '🥗', '🥑', '💊', '🏥', '🦷', '🚴', '🏊', '🚣', '⚽', '🏀', 
+            '🏐', '🥾', '🧘‍♀️', '🛌', '🥤',
+            // Trabajo y Estudio
+            '🖋️', '📊', '📉', '📈', '📅', '📎', '📁', '💡', '🔍', '📢', 
+            '💻', '🖱️', '⌨️', '📖', '🎓',
+            // Hogar y Vida Diaria
+            '🏠', '🚿', '🧺', '🪠', '🔧', '📦', '🔑', '🚗', '🛵', '🐾', 
+            '🐶', '🐱', '🪴', '☕', '🍵',
+            // Ocio y Varios
+            '🎮', '🎲', '🧩', '🎬', '🎧', '🎤', '🎪', '🎨', '🕶️', '🏖️', 
+            '🏔️', '⛺', '🛸', '👾', '🍀'
         ];
         
         let selectedEmoji = '📝'; let logSelectedEmoji = '📝';
@@ -549,14 +502,12 @@
         function updateScore() {
             let earned = 0, total = 0;
             userSchedule.forEach(t => { 
-                total += parseFloat(t.points) || 0; 
-                if(t.done) earned += parseFloat(t.points) || 0; 
+                total += parseFloat(t.points); 
+                if(t.done) earned += parseFloat(t.points); 
             });
-            // Hard cap estricto en 10.0, redondeado a 1 decimal
-            earned = Math.min(Math.round(earned * 10) / 10, 10.0);
             document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
             document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
             historyData[today] = { earned, total };
             checkTrophies(earned);
         }
@@ -571,7 +522,7 @@
         window.changeLogDate = (offset) => {
             let d = new Date(currentLogDate + "T12:00:00");
             d.setDate(d.getDate() + offset);
-            window.selectLogDate(d.toISOString().split('T')[0]);
+            window.selectLogDate(new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
         };
 
         function renderLog() {
@@ -687,38 +638,6 @@
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
-        // --- POMODORO: Brain Dump y Modo PiP ---
-        window.saveBrainDump = () => {
-            localStorage.setItem(`procrastiBrainDump_${userId}`, document.getElementById('brainDumpInput').value);
-        };
-
-        let pipWindow = null;
-
-        window.togglePiP = async () => {
-            if (!('documentPictureInPicture' in window)) return alert("Usa Chrome/Edge para el modo mini.");
-            if (pipWindow) { pipWindow.close(); return; }
-            const pomoCard = document.getElementById('pomoCard');
-            pipWindow = await documentPictureInPicture.requestWindow({ width: 350, height: 380 });
-            [...document.styleSheets].forEach(ss => {
-                try {
-                    const s = document.createElement('style');
-                    s.textContent = [...ss.cssRules].map(r => r.cssText).join('');
-                    pipWindow.document.head.appendChild(s);
-                } catch(e) {
-                    const l = document.createElement('link'); l.rel='stylesheet'; l.href=ss.href;
-                    pipWindow.document.head.appendChild(l);
-                }
-            });
-            pipWindow.document.body.setAttribute('data-theme', currentTheme);
-            pomoCard.classList.add('pip-mode');
-            pipWindow.document.body.appendChild(pomoCard);
-            pipWindow.addEventListener("pagehide", () => {
-                pomoCard.classList.remove('pip-mode');
-                document.getElementById('pomodoroTab').appendChild(pomoCard);
-                pipWindow = null;
-            });
-        };
-
         // --- POMODORO ESTÁNDAR ---
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
@@ -804,7 +723,7 @@
             if (rangeType === 7 || rangeType === 30) {
                 for(let i=rangeType-1; i>=0; i--) {
                     const d = new Date(); d.setDate(d.getDate()-i);
-                    const s = d.toISOString().split('T')[0];
+                    const s = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
                     labels.push(s.split('-')[2] + '/' + s.split('-')[1]);
                     data.push(historyData[s] ? historyData[s].earned : 0);
                 }
@@ -871,33 +790,10 @@
         applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
         renderCollection(); renderSchedule(); renderLog(); window.resetTimer();
         
-        // Restaurar Brain Dump guardado
-        const savedDump = localStorage.getItem(`procrastiBrainDump_${userId}`);
-        if (savedDump) document.getElementById('brainDumpInput').value = savedDump;
-        document.getElementById('brainDumpContainer').style.display = 'block';
-        
         const greetingElement = document.getElementById('welcomeMessage');
         if (greetingElement) {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlUser = urlParams.get('user');
-            if (!urlUser) {
-                // Sin parámetro ?user= en la URL
-                document.querySelector('h1').textContent = '¿Qué haces aquí?';
-            } else {
-                // Saludo dinámico por hora del día
-                const hour = new Date().getHours();
-                let greeting;
-                if (hour >= 5 && hour < 12) {
-                    greeting = `🌅 ¡Buenos días, ${userId}! A conquistar la mañana.`;
-                } else if (hour >= 12 && hour < 18) {
-                    greeting = `☀️ ¡Buenas tardes, ${userId}! Sigue con el ritmo.`;
-                } else if (hour >= 18 && hour < 22) {
-                    greeting = `🌆 ¡Buenas noches, ${userId}! Cierra el día con fuerza.`;
-                } else {
-                    greeting = `🌙 Noche profunda, ${userId}. ¿No deberías descansar?`;
-                }
-                greetingElement.textContent = greeting;
-            }
+            const greetings = [ `¡Qué bueno verte otra vez, ${userId}!`, `Bienvenido de nuevo, ${userId}. ¿Qué vamos a lograr hoy?`, `Sesión activa: ${userId}. ¡A darle con todo!` ];
+            greetingElement.textContent = greetings[Math.floor(Math.random() * greetings.length)];
         }
 
         setInterval(updateClock, 1000); updateClock();
