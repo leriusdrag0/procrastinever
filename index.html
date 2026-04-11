@@ -142,42 +142,6 @@
 
         body.deep-focus .header, body.deep-focus .tabs { display: none !important; }
         body.deep-focus { padding-top: 10vh; }
-        
-        /* ESTILOS PARA EL MODO MINI (PICTURE-IN-PICTURE) */
-        .pip-mode { 
-            border: none !important; 
-            box-shadow: none !important; 
-            padding: 15px !important; 
-            background: var(--color-bg-primary) !important;
-            height: 100vh;
-            box-sizing: border-box;
-            display: flex;
-            flex-direction: column;
-        }
-        .pip-mode .pomo-config, .pip-mode #pipBtn, .pip-mode #cycleDots, .pip-mode #cycleText { 
-            display: none !important; 
-        }
-        .pip-mode #timerDisplay { 
-            font-size: 3.5rem !important; 
-            margin: 0 !important; 
-            line-height: 1;
-        }
-        .pip-mode #pomoStatus { 
-            font-size: 1.1rem !important; 
-            margin-bottom: 5px !important; 
-        }
-        .pip-mode #brainDumpContainer { 
-            display: flex !important; 
-            flex-direction: column; 
-            flex-grow: 1; 
-            margin-top: 10px !important; 
-        }
-        .pip-mode #brainDumpInput { 
-            flex-grow: 1; 
-            resize: none; 
-            font-size: 0.9rem !important; 
-            height: auto !important; 
-        }
     </style>
 </head>
 <body>
@@ -244,11 +208,6 @@
                 <div><label>Descanso</label><input type="number" id="restMin" value="5" onchange="savePomoSettings()"></div>
                 <div><label>Ciclos</label><input type="number" id="totalCycles" value="4" onchange="savePomoSettings(); renderDots();"></div>
             </div>
-            <div id="brainDumpContainer" style="display: none; margin-top: 20px; text-align: left;">
-                <label style="font-size: 0.8rem; font-weight: bold; color: var(--color-text-secondary); margin-bottom: 5px; display: block;">🧠 Pensamientos intrusivos / Pendientes:</label>
-                <textarea id="brainDumpInput" placeholder="Anota aquí lo que te distraiga..." style="width: 100%; height: 80px; padding: 10px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-bg-secondary); color: var(--color-text-primary); resize: none; font-family: inherit; font-size: 0.85rem;" oninput="saveBrainDump()"></textarea>
-            </div>
-            <button class="btn btn-outline" id="pipBtn" onclick="togglePiP()" style="margin-top: 15px; width: 100%; font-size: 0.8rem;">📌 Modo Mini (Siempre Visible)</button>
         </div>
     </div>
 
