@@ -271,7 +271,6 @@
         // --- CORRECCIÓN DE FECHA LOCAL ---
         const getLocalDateStr = () => {
             const now = new Date();
-            // Esto obtiene YYYY-MM-DD basado en la zona horaria del usuario
             return now.toLocaleDateString('en-CA'); 
         };
 
@@ -280,7 +279,10 @@
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
         const trophyData = [ { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' }, { pts: 100, icon: '💎', name: 'Casi Perfecto' }, { pts: 210, icon: '👑', name: 'Día Legendario' } ];
-        const emojis = ['📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', '💧', '💤', '💪', '🛒', '📝'];
+        
+        // --- LISTA COMPLETA DE 50 EMOJIS ---
+        const emojis = ['📚', '💻', '🏃', '🧘', '🍳', '🍎', '🧹', '🎸', '🎨', '🚶', '💧', '💤', '💪', '🛒', '📝', '🧠', '🩺', '🔬', '💊', '🩺', '💉', '🦷', '🏥', '🌡️', '🧩', '🚀', '🛠️', '⚙️', '📱', '🎮', '🎧', '⚡', '🌙', '☀️', '🌱', '🛁', '🕯️', '🍵', '📂', '⏰', '📅', '🎯', '🔥', '🏆', '💎', '🎨', '🎭', '🎤', '🎬', '📷'];
+        
         let selectedEmoji = '📝'; let logSelectedEmoji = '📝';
         let chartInstance = null; let pieChartInstance = null;
         const themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
@@ -444,9 +446,14 @@
         function renderEmojiPickers() {
             const p1 = document.getElementById('emojiPicker'), p2 = document.getElementById('logEmojiPicker');
             emojis.forEach(e => {
-                const s1 = document.createElement('span'); s1.textContent=e; s1.className='emoji-option'; s1.onclick=() => selectedEmoji=e; p1.appendChild(s1);
-                const s2 = document.createElement('span'); s2.textContent=e; s2.className='emoji-option'; s2.onclick=() => logSelectedEmoji=e; p2.appendChild(s2);
+                const s1 = document.createElement('span'); s1.textContent=e; s1.className='emoji-option'; s1.onclick=() => { selectedEmoji=e; updateEmojiSelection('edit'); }; p1.appendChild(s1);
+                const s2 = document.createElement('span'); s2.textContent=e; s2.className='emoji-option'; s2.onclick=() => { logSelectedEmoji=e; updateEmojiSelection('log'); }; p2.appendChild(s2);
             });
+        }
+        
+        function updateEmojiSelection(type) {
+            if(type === 'edit') document.querySelectorAll('#emojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === selectedEmoji));
+            if(type === 'log') document.querySelectorAll('#logEmojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === logSelectedEmoji));
         }
 
         function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
