@@ -144,8 +144,40 @@
         body.deep-focus { padding-top: 10vh; }
         
         /* ESTILOS PARA EL MODO MINI (PICTURE-IN-PICTURE) */
-        .pip-mode { border: none !important; box-shadow: none !important; padding: 15px !important; }
-        .pip-mode .pomo-config, .pip-mode #brainDumpContainer, .pip-mode #pipBtn { display: none !important; }
+        .pip-mode { 
+            border: none !important; 
+            box-shadow: none !important; 
+            padding: 15px !important; 
+            background: var(--color-bg-primary) !important;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .pip-mode .pomo-config, .pip-mode #pipBtn, .pip-mode #cycleDots, .pip-mode #cycleText { 
+            display: none !important; 
+        }
+        .pip-mode #timerDisplay { 
+            font-size: 3.5rem !important; 
+            margin: 0 !important; 
+            line-height: 1;
+        }
+        .pip-mode #pomoStatus { 
+            font-size: 1.1rem !important; 
+            margin-bottom: 5px !important; 
+        }
+        .pip-mode #brainDumpContainer { 
+            display: flex !important; 
+            flex-direction: column; 
+            flex-grow: 1; 
+            margin-top: 10px !important; 
+        }
+        .pip-mode #brainDumpInput { 
+            flex-grow: 1; 
+            resize: none; 
+            font-size: 0.9rem !important; 
+            height: auto !important; 
+        }
     </style>
 </head>
 <body>
@@ -349,6 +381,29 @@
         window.saveBrainDump = () => {
             localStorage.setItem(`procrastiBrainDump_${userId}`, document.getElementById('brainDumpInput').value);
         };
+
+        // --- FUNCIONES PARA SONIDO Y NOTIFICACIONES ---
+        function playSound(freq, duration) { 
+            const ctx = new (window.AudioContext || window.webkitAudioContext)(); 
+            const osc = ctx.createOscillator(), gain = ctx.createGain(); 
+            osc.connect(gain); gain.connect(ctx.destination); 
+            osc.frequency.value = freq; 
+            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); 
+            osc.start(); osc.stop(ctx.currentTime + duration); 
+        }
+        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
+        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
+
+        function notifyUser(title, text) {
+            if (!("Notification" in window)) return;
+            if (Notification.permission === "granted") {
+                new Notification(title, { body: text, icon: "logo.png" });
+            } else if (Notification.permission !== "denied") {
+                Notification.requestPermission().then(permission => {
+                    if (permission === "granted") new Notification(title, { body: text, icon: "logo.png" });
+                });
+            }
+        }
 
         let userSchedule = JSON.parse(localStorage.getItem(`userSchedule_${userId}`)) || [];
         let historyData = JSON.parse(localStorage.getItem(`procrastiHistory_${userId}`)) || {};
@@ -664,6 +719,11 @@
         window.toggleTimer = () => {
             const startBtn = getPomoUI('#startBtn');
             const brainDump = getPomoUI('#brainDumpContainer');
+            
+            // Pedir permiso de notificación al interactuar por primera vez
+            if ("Notification" in window && Notification.permission === "default") {
+                Notification.requestPermission();
+            }
 
             if(isRunning) { 
                 clearInterval(timerId); isRunning = false; 
@@ -703,15 +763,24 @@
             const status = getPomoUI('#pomoStatus');
             const total = parseInt(getPomoUI('#totalCycles')?.value || 4);
 
+            playAlarm(); // Activa la alerta sonora automáticamente
+
             if(currentMode === 'study') {
-                if(currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
+                if(currentCycle >= total) { 
+                    notifyUser("¡Sesión completa!", "Has terminado todos tus ciclos.");
+                    alert("¡Sesión completa!"); 
+                    window.resetTimer(); 
+                    return; 
+                }
                 currentMode = 'rest'; timeLeft = (getPomoUI('#restMin')?.value || 5) * 60;
                 if(status) status.textContent = "☕ Descanso";
                 pomoCard.classList.add('mode-rest');
+                notifyUser("¡Tiempo de descanso!", `Tómate ${getPomoUI('#restMin')?.value || 5} minutos.`);
             } else {
                 currentMode = 'study'; currentCycle++; timeLeft = (getPomoUI('#studyMin')?.value || 25) * 60;
                 if(status) status.textContent = "✍️ Estudio";
                 pomoCard.classList.remove('mode-rest');
+                notifyUser("¡A enfocarse!", "Es hora de volver al estudio.");
             }
             renderDots(); updateDisplay(); window.toggleTimer();
         }
@@ -741,7 +810,7 @@
 
                 pipWindow.document.body.setAttribute('data-theme', currentTheme);
                 pipWindow.document.body.style.background = 'var(--color-bg-primary)';
-                pipWindow.document.body.style.padding = "10px";
+                pipWindow.document.body.style.padding = "0px";
                 
                 pomoCard.classList.add('pip-mode');
                 pipWindow.document.body.appendChild(pomoCard);
@@ -755,10 +824,6 @@
                 console.error("Error PiP:", error); 
             }
         };
-
-        function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
-        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
-        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
 
         window.renderChart = () => {
             const rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
