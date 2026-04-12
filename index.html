@@ -202,6 +202,7 @@
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
             <button class="btn" onclick="openLogEditor()" style="flex: 2;">+ Agregar Extra</button>
         </div>
+        <div id="logScoreDisplay" style="text-align:center; font-weight:bold; color:var(--color-accent); margin-bottom:12px; font-size:0.95rem;"></div>
         <div id="logContainer"></div>
     </div>
 
@@ -452,7 +453,7 @@
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tab + 'Tab').classList.add('active');
             ev.target.classList.add('active');
-            if(tab === 'history') { renderChart(); renderPieChart(); }
+            if(tab === 'history') { renderChart(); renderPieChart(); calcStreak(); }
         };
 
         function updateLevelUI() {
@@ -523,7 +524,7 @@
             document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
             document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
             const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
-            historyData[today] = { earned, total };
+            historyData[today] = { earned: Math.min(earned, 10), total };
             checkTrophies(cappedEarned);
         }
 
@@ -544,14 +545,16 @@
             const container = document.getElementById('logContainer');
             if(!container) return;
             container.innerHTML = '';
+            let logTotalPts = 0;
             dailyLogs.forEach((item, index) => {
+                logTotalPts += parseFloat(item.points) || 0;
                 const catClass = `cat-border-${item.category || 'work'}`;
                 const tagClass = `tag-${item.category || 'work'}`;
                 const div = document.createElement('div');
                 div.className = `schedule-item ${catClass}`;
                 div.innerHTML = `
                     <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span></div>
+                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span> • 🪙 ${(parseFloat(item.points)||0).toFixed(1)} pts</div>
                         <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
                     </div>
                     <div class="action-icons">
@@ -561,6 +564,11 @@
                 `;
                 container.appendChild(div);
             });
+            const logScoreEl = document.getElementById('logScoreDisplay');
+            if(logScoreEl) {
+                const capped = Math.min(logTotalPts, 10);
+                logScoreEl.textContent = `Total del día: ${capped.toFixed(1)} / 10 pts`;
+            }
             if(document.getElementById('historyTab').classList.contains('active')) renderPieChart();
         }
 
@@ -644,7 +652,11 @@
             const cat = document.getElementById('logCategory').value;
             const pts = parseFloat(document.getElementById('logPoints').value) || 0;
             if(!name || !start) return;
-            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: pts, category: cat };
+            const totalLogPts = dailyLogs.reduce((sum, t) => sum + (parseFloat(t.points) || 0), 0);
+            const alreadyEditing = logEditingIndex >= 0 ? (parseFloat(dailyLogs[logEditingIndex].points) || 0) : 0;
+            const available = 10 - totalLogPts + alreadyEditing;
+            const cappedPts = Math.min(pts, Math.max(available, 0));
+            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: cappedPts, category: cat };
             if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
             else dailyLogs.push(obj);
             allLogs[currentLogDate] = dailyLogs;
@@ -725,6 +737,32 @@
                 document.getElementById('pomoCard').classList.remove('mode-rest');
             }
             renderDots(); updateDisplay(); window.toggleTimer();
+        }
+
+        function calcStreak() {
+            let streak = 0;
+            const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000);
+            let checking = new Date(today);
+            while(true) {
+                const dateStr = new Date(checking.getTime() - checking.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                const dayData = historyData[dateStr];
+                const dayLog = allLogs[dateStr];
+                const routinePts = dayData ? (dayData.earned || 0) : 0;
+                const logPts = dayLog ? dayLog.reduce((sum, t) => sum + (parseFloat(t.points) || 0), 0) : 0;
+                const totalDay = Math.min(routinePts + logPts, 10);
+                if(totalDay >= 3) {
+                    streak++;
+                    checking.setDate(checking.getDate() - 1);
+                } else {
+                    break;
+                }
+            }
+            const banner = document.getElementById('streakBanner');
+            if(banner) {
+                if(streak === 0) { banner.textContent = '🔥 Racha: 0 días — ¡Empieza hoy!'; }
+                else if(streak === 1) { banner.textContent = `🔥 Racha: 1 día — ¡Buen comienzo!`; }
+                else { banner.textContent = `🔥 Racha: ${streak} días consecutivos — ¡Imparable!`; }
+            }
         }
 
         function showToast(msg, duration = 3500) {
