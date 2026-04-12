@@ -522,8 +522,8 @@
                 if(t.done) earned += parseFloat(t.points); 
             });
             const cappedEarned = Math.min(earned, 10);
-            document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
-            document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
+            document.getElementById('scoreDisplay').textContent = `${cappedEarned.toFixed(1)} / 10`;
+            document.getElementById('progressBar').style.width = Math.min((cappedEarned / 10) * 100, 100) + '%';
             const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
             historyData[today] = { earned: Math.min(earned, 10), total };
             checkTrophies(cappedEarned);
@@ -667,35 +667,40 @@
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
 
         // --- POMODORO ESTÁNDAR ---
+        function getPomoDoc() {
+            return (pipWindow && !pipWindow.closed) ? pipWindow.document : document;
+        }
+
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
             const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
-            document.getElementById('timerDisplay').textContent = timeStr;
+            getPomoDoc().getElementById('timerDisplay').textContent = timeStr;
             updatePipDisplay(timeStr);
         }
         
         function renderDots() {
-            const c = document.getElementById('cycleDots'), tot = parseInt(document.getElementById('totalCycles').value);
+            const c = getPomoDoc().getElementById('cycleDots'), tot = parseInt(getPomoDoc().getElementById('totalCycles').value);
             c.innerHTML = '';
             for(let i=1; i<=tot; i++) {
                 const d = document.createElement('div');
                 d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
                 c.appendChild(d);
             }
-            document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
+            getPomoDoc().getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
         }
 
         window.savePomoSettings = () => { 
-            localStorage.setItem(`pomoStudy_${userId}`, document.getElementById('studyMin').value);
-            localStorage.setItem(`pomoRest_${userId}`, document.getElementById('restMin').value);
-            localStorage.setItem(`pomoCycles_${userId}`, document.getElementById('totalCycles').value);
+            localStorage.setItem(`pomoStudy_${userId}`, getPomoDoc().getElementById('studyMin').value);
+            localStorage.setItem(`pomoRest_${userId}`, getPomoDoc().getElementById('restMin').value);
+            localStorage.setItem(`pomoCycles_${userId}`, getPomoDoc().getElementById('totalCycles').value);
             window.resetTimer(); 
         };
 
         window.toggleTimer = () => {
-            if(isRunning) { clearInterval(timerId); isRunning = false; document.getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
+            if(isRunning) { clearInterval(timerId); isRunning = false; getPomoDoc().getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
             else {
-                isRunning = true; document.getElementById('startBtn').textContent = "⏸️ Pausar"; document.body.classList.add('deep-focus');
+                isRunning = true; getPomoDoc().getElementById('startBtn').textContent = "⏸️ Pausar";
+                if(!pipWindow) document.body.classList.add('deep-focus');
                 timerId = setInterval(() => {
                     timeLeft--; updateDisplay();
                     if(timeLeft <= 0) handlePhaseEnd();
@@ -707,21 +712,21 @@
             clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
             
             const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
-            document.getElementById('studyMin').value = sMin;
-            document.getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
-            document.getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+            getPomoDoc().getElementById('studyMin').value = sMin;
+            getPomoDoc().getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
+            getPomoDoc().getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
             
             timeLeft = sMin * 60;
-            document.getElementById('pomoStatus').textContent = "Listo para Empezar";
-            document.getElementById('pomoCard').classList.remove('mode-rest');
-            document.getElementById('startBtn').textContent = "▶️ Empezar";
+            getPomoDoc().getElementById('pomoStatus').textContent = "Listo para Empezar";
+            getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
+            getPomoDoc().getElementById('startBtn').textContent = "▶️ Empezar";
             updateDisplay(); renderDots();
         };
 
         function handlePhaseEnd() {
             clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
             playAlarm();
-            const total = parseInt(document.getElementById('totalCycles').value);
+            const total = parseInt(getPomoDoc().getElementById('totalCycles').value);
             if(currentMode === 'study') {
                 const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
@@ -731,15 +736,15 @@
                     syncToCloud(); renderLog();
                 }
                 if(currentCycle >= total) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
-                currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "☕ Descanso";
-                document.getElementById('pomoCard').classList.add('mode-rest');
+                currentMode = 'rest'; timeLeft = getPomoDoc().getElementById('restMin').value * 60;
+                getPomoDoc().getElementById('pomoStatus').textContent = "☕ Descanso";
+                getPomoDoc().getElementById('pomoCard').classList.add('mode-rest');
                 notifyPip("☕ ¡Hora del descanso!");
                 setPipMode('rest');
             } else {
-                currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "✍️ Estudio";
-                document.getElementById('pomoCard').classList.remove('mode-rest');
+                currentMode = 'study'; currentCycle++; timeLeft = getPomoDoc().getElementById('studyMin').value * 60;
+                getPomoDoc().getElementById('pomoStatus').textContent = "✍️ Estudio";
+                getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
                 notifyPip("✍️ ¡Nuevo ciclo de estudio!");
                 setPipMode('study');
             }
