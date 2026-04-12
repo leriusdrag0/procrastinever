@@ -806,16 +806,18 @@
 
                     if(covers80) {
                         allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
-                        if(!activeTask.done) {
-                            const pts = parseFloat(activeTask.points) || 0;
-                            totalXP += pts;
-                            activeTask.done = true;
-                            renderSchedule(); updateLevelUI();
-                            showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
-                        }
                     } else {
                         allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
                     }
+
+                    if(!activeTask.done) {
+                        const pts = parseFloat(activeTask.points) || 0;
+                        totalXP += pts;
+                        activeTask.done = true;
+                        renderSchedule(); updateLevelUI();
+                        showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
+                    }
+
                     syncToCloud(); renderLog();
                 }
 
