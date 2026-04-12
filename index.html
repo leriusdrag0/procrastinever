@@ -122,6 +122,18 @@
         .pomo-config { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 25px; font-size: 0.75rem; }
         .pomo-config input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
 
+        /* MODO PiP: todo más compacto */
+        .pip-mode { padding: 14px 16px !important; border-radius: 16px !important; }
+        .pip-mode .timer-display { font-size: 2.8rem !important; margin: 4px 0 !important; }
+        .pip-mode #pomoStatus { font-size: 0.85rem !important; margin-bottom: 2px !important; }
+        .pip-mode #cycleText { font-size: 0.75rem !important; margin-bottom: 8px !important; }
+        .pip-mode .cycle-dots { margin: 6px 0 !important; }
+        .pip-mode .dot { width: 8px !important; height: 8px !important; }
+        .pip-mode .btn { padding: 7px 12px !important; font-size: 0.8rem !important; }
+        .pip-mode .pomo-config { margin-top: 12px !important; font-size: 0.7rem !important; }
+        .pip-mode .pomo-config input { padding: 5px !important; }
+        .pip-mode #mindDumpWrapper { margin-top: 10px !important; }
+
         .streak-banner { background: linear-gradient(135deg, var(--color-accent-hover), var(--color-accent)); color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; margin-bottom: 20px; }
         .chart-container { background: var(--color-card); padding: 15px; border-radius: 12px; border: 1px solid var(--color-border); margin-bottom: 20px; }
 
@@ -729,12 +741,40 @@
             const total = parseInt(getPomoDoc().getElementById('totalCycles').value);
             if(currentMode === 'study') {
                 const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                const studyMinutes = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
+
+                // Buscar actividad activa en rutina que coincida con el horario actual
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+
                 if(activeTask) {
+                    // Calcular duración del intervalo de la actividad en minutos
+                    const [startH, startM] = activeTask.time.split(':').map(Number);
+                    const [endH, endM] = activeTask.end.split(':').map(Number);
+                    const activityDuration = (endH * 60 + endM) - (startH * 60 + startM);
+
+                    // Verificar si el pomodoro cubre al menos el 80% del intervalo
+                    const covers80 = activityDuration > 0 && (studyMinutes / activityDuration) >= 0.8;
+
                     if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
-                    allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+
+                    if(covers80) {
+                        // Registrar con los puntos de la rutina y marcar como completada
+                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                        if(!activeTask.done) {
+                            const idx = userSchedule.indexOf(activeTask);
+                            const pts = parseFloat(activeTask.points) || 0;
+                            totalXP += pts;
+                            activeTask.done = true;
+                            renderSchedule(); updateLevelUI();
+                            showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
+                        }
+                    } else {
+                        // No cubre el 80%: registrar con puntos del pomodoro (comportamiento original)
+                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                    }
                     syncToCloud(); renderLog();
                 }
+
                 if(currentCycle >= total) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
                 currentMode = 'rest'; timeLeft = getPomoDoc().getElementById('restMin').value * 60;
                 getPomoDoc().getElementById('pomoStatus').textContent = "☕ Descanso";
