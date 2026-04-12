@@ -792,22 +792,21 @@
                 // Buscar actividad activa en rutina que coincida con el horario actual
                 const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
 
-                if(activeTask) {
-                    // Calcular duración del intervalo de la actividad en minutos
+                // Solo registrar en el log al terminar el ÚLTIMO ciclo
+                const esUltimoCiclo = currentCycle >= total;
+
+                if(esUltimoCiclo && activeTask) {
                     const [startH, startM] = activeTask.time.split(':').map(Number);
                     const [endH, endM] = activeTask.end.split(':').map(Number);
                     const activityDuration = (endH * 60 + endM) - (startH * 60 + startM);
-
-                    // Verificar si el pomodoro cubre al menos el 80% del intervalo
-                    const covers80 = activityDuration > 0 && (studyMinutes / activityDuration) >= 0.8;
+                    const totalStudyMinutes = studyMinutes * total;
+                    const covers80 = activityDuration > 0 && (totalStudyMinutes / activityDuration) >= 0.8;
 
                     if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
 
                     if(covers80) {
-                        // Registrar con los puntos de la rutina y marcar como completada
                         allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
                         if(!activeTask.done) {
-                            const idx = userSchedule.indexOf(activeTask);
                             const pts = parseFloat(activeTask.points) || 0;
                             totalXP += pts;
                             activeTask.done = true;
@@ -815,13 +814,12 @@
                             showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
                         }
                     } else {
-                        // No cubre el 80%: registrar con puntos del pomodoro (comportamiento original)
                         allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
                     }
                     syncToCloud(); renderLog();
                 }
 
-                if(currentCycle >= total) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
+                if(esUltimoCiclo) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
                 currentMode = 'rest'; timeLeft = getPomoDoc().getElementById('restMin').value * 60;
                 getPomoDoc().getElementById('pomoStatus').textContent = "☕ Descanso";
                 getPomoDoc().getElementById('pomoCard').classList.add('mode-rest');
