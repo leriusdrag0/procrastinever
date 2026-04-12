@@ -122,17 +122,19 @@
         .pomo-config { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 25px; font-size: 0.75rem; }
         .pomo-config input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
 
-        /* MODO PiP: todo más compacto */
-        .pip-mode { padding: 14px 16px !important; border-radius: 16px !important; }
-        .pip-mode .timer-display { font-size: 2.8rem !important; margin: 4px 0 !important; }
-        .pip-mode #pomoStatus { font-size: 0.85rem !important; margin-bottom: 2px !important; }
-        .pip-mode #cycleText { font-size: 0.75rem !important; margin-bottom: 8px !important; }
-        .pip-mode .cycle-dots { margin: 6px 0 !important; }
-        .pip-mode .dot { width: 8px !important; height: 8px !important; }
-        .pip-mode .btn { padding: 7px 12px !important; font-size: 0.8rem !important; }
-        .pip-mode .pomo-config { margin-top: 12px !important; font-size: 0.7rem !important; }
-        .pip-mode .pomo-config input { padding: 5px !important; }
-        .pip-mode #mindDumpWrapper { margin-top: 10px !important; }
+        /* MODO PiP: timer pequeño como el reloj del header, mind dump dominante */
+        .pip-mode { padding: 10px 14px !important; border-radius: 16px !important; display: flex !important; flex-direction: column !important; }
+        .pip-mode .timer-display { font-size: 0.95rem !important; margin: 2px 0 !important; font-family: monospace !important; display: inline !important; }
+        .pip-mode #pomoStatus { font-size: 0.75rem !important; margin-bottom: 0 !important; display: inline !important; }
+        .pip-mode #pipTopRow { display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; flex-wrap: wrap !important; margin-bottom: 4px !important; }
+        .pip-mode #cycleText { font-size: 0.7rem !important; margin-bottom: 4px !important; text-align: center !important; }
+        .pip-mode .cycle-dots { margin: 3px 0 !important; }
+        .pip-mode .dot { width: 6px !important; height: 6px !important; }
+        .pip-mode .btn { padding: 4px 8px !important; font-size: 0.72rem !important; }
+        .pip-mode .pomo-config { margin-top: 6px !important; font-size: 0.65rem !important; }
+        .pip-mode .pomo-config input { padding: 3px !important; }
+        .pip-mode #mindDumpWrapper { margin-top: 8px !important; flex: 1 !important; display: flex !important; flex-direction: column !important; }
+        .pip-mode #pipMindDump { flex: 1 !important; min-height: 120px !important; font-size: 0.85rem !important; }
 
         .streak-banner { background: linear-gradient(135deg, var(--color-accent-hover), var(--color-accent)); color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; margin-bottom: 20px; }
         .chart-container { background: var(--color-card); padding: 15px; border-radius: 12px; border: 1px solid var(--color-border); margin-bottom: 20px; }
@@ -360,8 +362,52 @@
         if (userId) {
             localStorage.setItem('procrastiActiveUser', userId);
         } else {
-            userId = localStorage.getItem('procrastiActiveUser') || 'Invitado';
+            userId = localStorage.getItem('procrastiActiveUser') || null;
         }
+
+        // Si no hay usuario, mostrar pantalla de login y detener el resto
+        if (!userId) {
+            // Ocultar todo el contenido de la app
+            document.querySelectorAll('body > *').forEach(el => {
+                if(el.id !== 'loginScreen') el.style.display = 'none';
+            });
+
+            // Crear pantalla de login
+            const loginScreen = document.createElement('div');
+            loginScreen.id = 'loginScreen';
+            loginScreen.style.cssText = 'max-width:600px; margin:0 auto; padding:20px;';
+            loginScreen.innerHTML = `
+                <div class="header" style="margin-bottom:30px;">
+                    <h1>🎴 ProcrastiNever</h1>
+                    <div class="subtitle">Coleccionista de hábitos</div>
+                </div>
+                <div style="background:var(--color-card); border-radius:15px; padding:30px; box-shadow:0 4px 15px rgba(0,0,0,0.05); text-align:center;">
+                    <div style="font-size:2.5rem; margin-bottom:10px;">👤</div>
+                    <h2 style="font-size:1.2rem; margin-bottom:8px; color:var(--color-accent);">¿Quién eres?</h2>
+                    <p style="font-size:0.85rem; color:var(--color-text-secondary); margin-bottom:20px;">Escribe tu nombre de usuario para acceder a tu perfil.</p>
+                    <input id="loginInput" type="text" placeholder="Ej: LeriusDrago" autocomplete="off" autocapitalize="off"
+                        style="width:100%; padding:12px 16px; border-radius:12px; border:2px solid var(--color-border); background:var(--color-bg-primary); color:var(--color-text-primary); font-size:1rem; margin-bottom:14px; text-align:center; outline:none; transition:border 0.2s;"
+                        onkeydown="if(event.key==='Enter') loginUser()">
+                    <button class="btn" onclick="loginUser()" style="width:100%; font-size:1rem; padding:14px;">Ingresar 🚀</button>
+                </div>
+            `;
+            document.body.appendChild(loginScreen);
+
+            // Aplicar tema guardado globalmente (sin userId)
+            const savedTheme = localStorage.getItem('procrastiTheme_global') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+
+            window.loginUser = () => {
+                const input = document.getElementById('loginInput').value.trim();
+                if(!input) { document.getElementById('loginInput').style.borderColor = 'var(--color-fail)'; return; }
+                window.location.href = `${window.location.origin}${window.location.pathname}?user=${encodeURIComponent(input)}`;
+            };
+
+            // Detener todo lo demás — no inicializar la app
+            throw new Error('LOGIN_REQUIRED');
+        }
+
+        userId = userId || 'Invitado';
 
         const userDocRef = doc(db, "userData", userId);
         console.log("Sesión activa para:", userId);
