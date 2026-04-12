@@ -142,6 +142,42 @@
 
         body.deep-focus .header, body.deep-focus .tabs { display: none !important; }
         body.deep-focus { padding-top: 10vh; }
+
+        /* NUEVO: ESTILOS PARA EL MODO MINI (PICTURE-IN-PICTURE) CON BRAIN DUMP */
+        .pip-mode { 
+            border: none !important; 
+            box-shadow: none !important; 
+            padding: 15px !important; 
+            background: var(--color-bg-primary) !important;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .pip-mode .pomo-config, .pip-mode #pipBtn, .pip-mode #cycleDots, .pip-mode #cycleText { 
+            display: none !important; 
+        }
+        .pip-mode #timerDisplay { 
+            font-size: 3.5rem !important; 
+            margin: 0 !important; 
+            line-height: 1;
+        }
+        .pip-mode #pomoStatus { 
+            font-size: 1.1rem !important; 
+            margin-bottom: 5px !important; 
+        }
+        .pip-mode #brainDumpContainer { 
+            display: flex !important; 
+            flex-direction: column; 
+            flex-grow: 1; 
+            margin-top: 10px !important; 
+        }
+        .pip-mode #brainDumpInput { 
+            flex-grow: 1; 
+            resize: none; 
+            font-size: 0.9rem !important; 
+            height: auto !important; 
+        }
     </style>
 </head>
 <body>
@@ -184,7 +220,7 @@
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(-1)">◀</button>
             <input type="date" id="logDateSelector" style="padding: 8px; border-radius: 8px; background: var(--color-bg-primary); color: var(--color-text-primary); border: 1px solid var(--color-border); font-weight: bold;" onchange="selectLogDate(this.value)">
             <button class="btn btn-outline" style="padding: 5px 15px; border-radius: 8px;" onclick="changeLogDate(1)">▶</button>
-            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0])">Hoy</button>
+            <button class="btn" style="padding: 8px 15px; border-radius: 8px;" onclick="selectLogDate(new Date().toISOString().split('T')[0])">Hoy</button>
         </div>
 
         <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -208,6 +244,11 @@
                 <div><label>Descanso</label><input type="number" id="restMin" value="5" onchange="savePomoSettings()"></div>
                 <div><label>Ciclos</label><input type="number" id="totalCycles" value="4" onchange="savePomoSettings(); renderDots();"></div>
             </div>
+            <div id="brainDumpContainer" style="display: none; margin-top: 20px; text-align: left;">
+                <label style="font-size: 0.8rem; font-weight: bold; color: var(--color-text-secondary); margin-bottom: 5px; display: block;">🧠 Pensamientos intrusivos / Pendientes:</label>
+                <textarea id="brainDumpInput" placeholder="Anota aquí lo que te distraiga..." style="width: 100%; height: 80px; padding: 10px; border-radius: 12px; border: 1px solid var(--color-border); background: var(--color-bg-secondary); color: var(--color-text-primary); resize: none; font-family: inherit; font-size: 0.85rem;" oninput="saveBrainDump()"></textarea>
+            </div>
+            <button class="btn btn-outline" id="pipBtn" onclick="togglePiP()" style="margin-top: 15px; width: 100%; font-size: 0.8rem;">📌 Modo Mini (Siempre Visible)</button>
         </div>
     </div>
 
@@ -310,6 +351,7 @@
     </div>
 
     <script type="module">
+        // --- 1. CONFIGURACIÓN FIREBASE Y USUARIO ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -335,42 +377,24 @@
         }
 
         const userDocRef = doc(db, "userData", userId);
+        
+        // NUEVO: Variable global para el PiP
+        let pipWindow = null; 
 
-        window.saveBrainDump = () => {
-            localStorage.setItem(`procrastiBrainDump_${userId}`, document.getElementById('brainDumpInput').value);
-        };
+        // NUEVO: Buscador inteligente de DOM para sobrevivir al PiP
+        const getEl = (id) => document.getElementById(id) || (pipWindow ? pipWindow.document.getElementById(id) : null);
 
-        function playSound(freq, duration) { 
-            const ctx = new (window.AudioContext || window.webkitAudioContext)(); 
-            const osc = ctx.createOscillator(), gain = ctx.createGain(); 
-            osc.connect(gain); gain.connect(ctx.destination); 
-            osc.frequency.value = freq; 
-            gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); 
-            osc.start(); osc.stop(ctx.currentTime + duration); 
-        }
-        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
-        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
-
-        function notifyUser(title, text) {
-            if (!("Notification" in window)) return;
-            if (Notification.permission === "granted") {
-                new Notification(title, { body: text, icon: "logo.png" });
-            } else if (Notification.permission !== "denied") {
-                Notification.requestPermission().then(p => { if(p === "granted") new Notification(title, { body: text }); });
-            }
-        }
-
+        // --- 2. VARIABLES DE ESTADO ---
         let userSchedule = JSON.parse(localStorage.getItem(`userSchedule_${userId}`)) || [];
         let historyData = JSON.parse(localStorage.getItem(`procrastiHistory_${userId}`)) || {};
         let totalXP = parseFloat(localStorage.getItem(`totalXP_${userId}`)) || 0;
         let unlockedTrophies = JSON.parse(localStorage.getItem(`procrastiTrophies_${userId}`)) || {};
         let allLogs = JSON.parse(localStorage.getItem(`procrastiAllLogs_${userId}`)) || {};
         let currentTheme = localStorage.getItem(`procrastiTheme_${userId}`) || 'light';
-        let currentLogDate = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        let currentLogDate = new Date().toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
-        let pipWindow = null; 
 
         const trophyData = [
             { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
@@ -380,31 +404,21 @@
             { pts: 600, icon: '🌟', name: 'Estrella Absoluta' }, { pts: 1000, icon: '🌌', name: 'Dios del Olimpo' }
         ];
         
+        // NUEVO: 120 Emojis Integrados
         const emojis = [
-            
-            // MEDICINA GENERAL, CIENCIA Y ESPECIALIDADES (Unificado)
             '🤰', '🤱', '🍼', '👶', '🧸', '🐣', '🚼', '🏩', '🎀', '👣',
             '🩺', '🧠', '🫀', '🫁', '🦴', '🦷', '🧬', '🔬', '💉', '💊', 
             '🩹', '🌡️', '🏥', '🚑', '🧪', '⚕️', '📋', '🦠', '🩸', '👁️', 
             '👂', '👃', '👅', '🧤', '🧼', '🧖', '🧑‍⚕️', '👩‍⚕️', '🩻', '☣️', 
-            '⚠️', '🧴', '😷', '🧬', '🔬', '🧪', '🩹', '🏥', '🫄', '🎗️',
-
-            // LABORES DOMÉSTICAS (Limpieza y Hogar)
-            '🧹', '🧺', '🧽', '🧼', '🚿', '🛁', '🪣', '🪠', '👕', '👖', 
-            '👗', '👔', '🧦', '👟', '🛌', '🛏️', '🏠', '🏠', '🔑', '🚪',
-            '🔌', '🗑️', '🔨', '🛠️', '📦', '🏮', '🛋️', '🖼️', '🪴', '🚿',
-
-            // COCINA Y NUTRICIÓN
-            '🍳', '🍲', '🥗', '🍎', '🥦', '🍗', '🥤', '☕', '🥛', '🔪',
-            '🍴', '🍽️', '🍱', '🥣', '🛒', '🍓', '🍌', '🥑', '🍞', '🥛',
-
-            // ESTUDIO Y PRODUCTIVIDAD
-            '📚', '📖', '📝', '✏️', '🖋️', '📒', '💻', '🖥️', '⌨️', '🖱️',
-            '💡', '🤔', '🧐', '🏫', '🎓', '📅', '📌', '📊', '📈', '📉',
-
-            // BIENESTAR, EJERCICIO Y RECOMPENSAS
-            '🏃', '🧘', '💪', '🚴', '🚶', '💤', '🔋', '🏆', '💎', '🔥',
-            '🌟', '🚀', '🎯', '✅', '🎮', '📸', '🎨', '🎵', '☀️', '🌈'
+            '⚠️', '🧴', '😷', '🫄', '🎗️', '🧹', '🧺', '🧽', '🧼', '🚿', 
+            '🛁', '🪣', '🪠', '👕', '👖', '👗', '👔', '🧦', '👟', '🛌', 
+            '🛏️', '🏠', '🔑', '🚪', '🔌', '🗑️', '🔨', '🛠️', '📦', '🏮', 
+            '🛋️', '🖼️', '🪴', '🍳', '🍲', '🥗', '🍎', '🥦', '🍗', '🥤', 
+            '☕', '🥛', '🔪', '🍴', '🍽️', '🍱', '🥣', '🛒', '🍓', '🍌', 
+            '🥑', '🍞', '📚', '📖', '📝', '✏️', '🖋️', '📒', '💻', '🖥️', 
+            '⌨️', '🖱️', '💡', '🤔', '🧐', '🏫', '🎓', '📅', '📌', '📊', 
+            '📈', '📉', '🏃', '🧘', '💪', '🚴', '🚶', '💤', '🔋', '🏆', 
+            '💎', '🔥', '🌟', '🚀', '🎯', '✅', '🎮', '📸', '🎨', '🎵'
         ];
         
         let selectedEmoji = '📝'; let logSelectedEmoji = '📝';
@@ -413,11 +427,12 @@
         const themes = ['light', 'dark', 'winter', 'spring', 'summer', 'purple'];
         const themeIcons = { 'light': '🍂', 'dark': '🌙', 'winter': '❄️', 'spring': '🌸', 'summer': '🏖️', 'purple': '🔮' };
 
+        // --- 3. SINCRONIZACIÓN CLOUD ---
         async function syncToCloud() {
             try {
                 const data = { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastUpdated: Date.now() };
                 await setDoc(userDocRef, data);
-            } catch (e) { console.error("Error sync:", e); }
+            } catch (e) { console.error("Error al sincronizar:", e); }
         }
 
         onSnapshot(userDocRef, (doc) => {
@@ -428,17 +443,23 @@
                 totalXP = cloud.totalXP || 0;
                 unlockedTrophies = cloud.unlockedTrophies || {};
                 allLogs = cloud.allLogs || {};
-                if (cloud.currentTheme && cloud.currentTheme !== currentTheme) applyTheme(cloud.currentTheme);
+                
+                if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
+                    applyTheme(cloud.currentTheme);
+                }
+
                 localStorage.setItem(`userSchedule_${userId}`, JSON.stringify(userSchedule));
                 localStorage.setItem(`totalXP_${userId}`, totalXP);
                 localStorage.setItem(`procrastiAllLogs_${userId}`, JSON.stringify(allLogs));
                 localStorage.setItem(`procrastiHistory_${userId}`, JSON.stringify(historyData)); 
                 localStorage.setItem(`procrastiTrophies_${userId}`, JSON.stringify(unlockedTrophies)); 
+
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
             }
         });
 
+        // --- 4. FUNCIONES GLOBALES ---
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             document.getElementById('themeToggleBtn').textContent = themeIcons[theme];
@@ -465,23 +486,48 @@
 
         function updateLevelUI() {
             const level = Math.floor(totalXP / 50) + 1;
-            const progress = (totalXP % 50 / 50) * 100;
+            const xpInLevel = totalXP % 50;
+            const progress = (xpInLevel / 50) * 100;
+            let rank = "🐣 Novato del Enfoque";
+            if(level >= 5) rank = "⚔️ Guerrero";
+            if(level >= 10) rank = "⚡ Maestro";
+            if(level >= 20) rank = "🔥 Titán";
+            if(level >= 40) rank = "👑 Leyenda";
             document.getElementById('levelBadge').textContent = `Nivel ${level}`;
+            document.getElementById('rankText').textContent = rank;
             document.getElementById('xpBar').style.width = `${progress}%`;
             localStorage.setItem(`totalXP_${userId}`, totalXP);
         }
 
         function renderSchedule() {
             const container = document.getElementById('scheduleContainer');
-            if(!container) return; container.innerHTML = '';
+            if(!container) return;
+            container.innerHTML = '';
             userSchedule.sort((a,b) => a.time.localeCompare(b.time));
             const now = new Date();
             const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+
             userSchedule.forEach((item, index) => {
+                const catClass = `cat-border-${item.category || 'work'}`;
+                const tagClass = `tag-${item.category || 'work'}`;
                 const isCurrent = (item.end && currentTime >= item.time && currentTime <= item.end) && !item.done;
+                
                 const div = document.createElement('div');
-                div.className = `schedule-item ${item.done ? 'task-done' : ''} cat-border-${item.category} ${isCurrent ? 'current-task' : ''}`;
-                div.innerHTML = `<div><div style="font-size:0.7rem;">${item.time} - ${item.end} • 🪙 ${item.points} <span class="category-tag tag-${item.category}">${item.category}</span></div><div style="font-weight:bold;">${item.emoji} ${item.activity}</div></div><div class="action-icons"><button class="btn" onclick="toggleTask(${index})">✅</button><span onclick="openEditor(${index})">✏️</span><span onclick="deleteActivity(${index})">🗑️</span></div>`;
+                div.className = `schedule-item ${item.done ? 'task-done' : ''} ${catClass} ${isCurrent ? 'current-task' : ''}`;
+                div.innerHTML = `
+                    <div>
+                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">
+                            ${item.time} - ${item.end} • 🪙 ${item.points} pts
+                            <span class="category-tag ${tagClass}">${item.category || 'work'}</span>
+                        </div>
+                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
+                    </div>
+                    <div class="action-icons">
+                        <button class="btn" style="padding:5px 10px; background:var(--color-surface); color:var(--color-text-primary);" onclick="toggleTask(${index})">✅</button>
+                        <span onclick="openEditor(${index})">✏️</span>
+                        <span onclick="deleteActivity(${index})">🗑️</span>
+                    </div>
+                `;
                 container.appendChild(div);
             });
             updateScore();
@@ -489,37 +535,77 @@
 
         window.toggleTask = (index) => {
             const task = userSchedule[index];
-            if (!task.done) { totalXP += parseFloat(task.points); triggerConfetti(); playSound(800, 0.2); }
-            else { totalXP = Math.max(0, totalXP - parseFloat(task.points)); }
+            const pts = parseFloat(task.points) || 0;
+            if (!task.done) { totalXP += pts; triggerConfetti(); playSound(800, 0.2); }
+            else { totalXP = Math.max(0, totalXP - pts); }
             task.done = !task.done;
             renderSchedule(); updateLevelUI(); syncToCloud();
         };
 
+        // NUEVO: Rescate del límite de 10 puntos (Error 1 corregido)
         function updateScore() {
-            let earned = 0; userSchedule.forEach(t => { if(t.done) earned += parseFloat(t.points); });
-            document.getElementById('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
-            document.getElementById('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
-            historyData[currentLogDate] = { earned };
+            let earned = 0, total = 0;
+            userSchedule.forEach(t => { 
+                total += parseFloat(t.points); 
+                if(t.done) earned += parseFloat(t.points); 
+            });
+            
+            if(earned > 10) earned = 10; // HARD CAP DE 10.0 PUNTOS
+            
+            getEl('scoreDisplay').textContent = `${earned.toFixed(1)} / 10`;
+            getEl('progressBar').style.width = Math.min((earned / 10) * 100, 100) + '%';
+            const today = new Date().toISOString().split('T')[0];
+            historyData[today] = { earned, total };
             checkTrophies(earned);
         }
 
-        function renderLog() {
+        window.selectLogDate = (dateStr) => {
+            if (!dateStr) return; currentLogDate = dateStr;
+            document.getElementById('logDateSelector').value = currentLogDate;
+            dailyLogs = allLogs[currentLogDate] || [];
+            renderLog();
+        };
+
+        window.changeLogDate = (offset) => {
+            let d = new Date(currentLogDate + "T12:00:00");
+            d.setDate(d.getDate() + offset);
+            window.selectLogDate(d.toISOString().split('T')[0]);
+        };
+
+        // Pestaña de logs conectada y global
+        window.renderLog = () => {
             const container = document.getElementById('logContainer');
-            if(!container) return; container.innerHTML = '';
+            if(!container) return;
+            container.innerHTML = '';
             dailyLogs.forEach((item, index) => {
+                const catClass = `cat-border-${item.category || 'work'}`;
+                const tagClass = `tag-${item.category || 'work'}`;
                 const div = document.createElement('div');
-                div.className = `schedule-item cat-border-${item.category}`;
-                div.innerHTML = `<div><div style="font-size:0.7rem;">${item.time} <span class="category-tag tag-${item.category}">${item.category}</span></div><div style="font-weight:bold;">${item.emoji} ${item.activity}</div></div><div class="action-icons"><span onclick="openLogEditor(${index})">✏️</span><span onclick="deleteLogActivity(${index})">🗑️</span></div>`;
+                div.className = `schedule-item ${catClass}`;
+                div.innerHTML = `
+                    <div>
+                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span></div>
+                        <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
+                    </div>
+                    <div class="action-icons">
+                        <span onclick="openLogEditor(${index})">✏️</span>
+                        <span onclick="deleteLogActivity(${index})">🗑️</span>
+                    </div>
+                `;
                 container.appendChild(div);
             });
-        }
+            if(document.getElementById('historyTab').classList.contains('active')) renderPieChart();
+        };
 
         function checkTrophies(earnedPts) {
+            let newlyUnlocked = false;
             trophyData.forEach(t => {
                 if (earnedPts >= t.pts && !unlockedTrophies[t.pts]) {
-                    unlockedTrophies[t.pts] = true; renderCollection(); triggerConfetti();
+                    unlockedTrophies[t.pts] = true; newlyUnlocked = true;
+                    setTimeout(() => alert(`🏆 ¡Desbloqueaste: ${t.name}!`), 400);
                 }
             });
+            if (newlyUnlocked) { renderCollection(); triggerConfetti(); }
         }
 
         function renderCollection() {
@@ -527,99 +613,128 @@
             if(!container) return; container.innerHTML = '';
             trophyData.forEach(t => {
                 const isUnlocked = unlockedTrophies[t.pts];
-                container.innerHTML += `<div class="trophy-slot ${isUnlocked ? 'unlocked' : ''}"><div class="trophy-icon">${t.icon}</div><div class="trophy-title">${isUnlocked ? t.name : 'Bloqueado'}</div><div class="trophy-req">${t.pts} pts</div></div>`;
+                const div = document.createElement('div');
+                div.className = `trophy-slot ${isUnlocked ? 'unlocked' : ''}`;
+                div.innerHTML = `<div class="trophy-icon">${t.icon}</div><div class="trophy-title">${isUnlocked ? t.name : 'Bloqueado'}</div><div class="trophy-req">${t.pts} pts</div>`;
+                container.appendChild(div);
             });
         }
 
-        window.openEditor = (i = -1) => {
-            editingIndex = i; document.getElementById('editModal').style.display = 'flex';
-            if(i >= 0) {
-                const t = userSchedule[i];
-                document.getElementById('editActivity').value = t.activity; document.getElementById('editPoints').value = t.points;
-                document.getElementById('editStart').value = t.time; document.getElementById('editEnd').value = t.end;
-                document.getElementById('editCategory').value = t.category; selectedEmoji = t.emoji;
-            }
+        window.openEditor = (index = -1) => {
+            editingIndex = index; document.getElementById('editModal').style.display = 'flex';
+            if(index >= 0) {
+                const t = userSchedule[index];
+                document.getElementById('editActivity').value = t.activity;
+                document.getElementById('editPoints').value = t.points;
+                document.getElementById('editStart').value = t.time;
+                document.getElementById('editEnd').value = t.end;
+                document.getElementById('editCategory').value = t.category || 'work';
+                selectedEmoji = t.emoji;
+            } else { document.getElementById('editActivity').value = ''; }
             updateEmojiSelection('edit');
         };
 
+        window.closeEditor = () => { document.getElementById('editModal').style.display = 'none'; };
+        
         window.saveActivity = () => {
-            const obj = { 
-                activity: document.getElementById('editActivity').value, time: document.getElementById('editStart').value, 
-                end: document.getElementById('editEnd').value, emoji: selectedEmoji, 
-                points: document.getElementById('editPoints').value, category: document.getElementById('editCategory').value, done: false 
-            };
+            const name = document.getElementById('editActivity').value;
+            const start = document.getElementById('editStart').value;
+            const end = document.getElementById('editEnd').value;
+            const cat = document.getElementById('editCategory').value;
+            const pts = parseFloat(document.getElementById('editPoints').value) || 0;
+            if(!name || !start) return;
+            const obj = { activity: name, time: start, end: end, emoji: selectedEmoji, points: pts, category: cat, done: false };
             if(editingIndex >= 0) userSchedule[editingIndex] = {...obj, done: userSchedule[editingIndex].done};
             else userSchedule.push(obj);
-            renderSchedule(); document.getElementById('editModal').style.display = 'none'; syncToCloud();
+            renderSchedule(); window.closeEditor(); syncToCloud();
         };
 
-        window.deleteActivity = (i) => { userSchedule.splice(i, 1); renderSchedule(); syncToCloud(); };
+        window.deleteActivity = (index) => { userSchedule.splice(index, 1); renderSchedule(); syncToCloud(); };
+        window.resetDay = () => { userSchedule.forEach(t => t.done = false); renderSchedule(); syncToCloud(); };
 
-        // --- CORRECCIÓN POMODORO ---
-        const pomoCard = document.getElementById('pomoCard');
-
-        window.savePomoSettings = () => {
-            // Buscamos los inputs directamente en el documento para evitar errores de scope
-            const sVal = document.getElementById('studyMin').value;
-            const rVal = document.getElementById('restMin').value;
-            const cVal = document.getElementById('totalCycles').value;
-            
-            localStorage.setItem(`pomoStudy_${userId}`, sVal);
-            localStorage.setItem(`pomoRest_${userId}`, rVal);
-            localStorage.setItem(`pomoCycles_${userId}`, cVal);
-            
-            window.resetTimer();
+        window.openLogEditor = (index = -1) => {
+            logEditingIndex = index; document.getElementById('logModal').style.display = 'flex';
+            if(index >= 0) {
+                const t = dailyLogs[index];
+                document.getElementById('logActivity').value = t.activity;
+                document.getElementById('logPoints').value = t.points;
+                document.getElementById('logTime').value = t.time;
+                document.getElementById('logCategory').value = t.category || 'work';
+                logSelectedEmoji = t.emoji;
+            } else { 
+                document.getElementById('logActivity').value = ''; 
+                const now = new Date();
+                document.getElementById('logTime').value = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+            }
+            updateEmojiSelection('log');
         };
 
-        window.resetTimer = () => {
-            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1;
-            document.body.classList.remove('deep-focus');
-            
-            // Cargar valores guardados o usar por defecto
-            const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
-            const rMin = localStorage.getItem(`pomoRest_${userId}`) || 5;
-            const tCyc = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+        window.closeLogEditor = () => { document.getElementById('logModal').style.display = 'none'; };
 
-            // Asegurar que los inputs reflejen lo guardado
-            document.getElementById('studyMin').value = sMin;
-            document.getElementById('restMin').value = rMin;
-            document.getElementById('totalCycles').value = tCyc;
+        window.saveLogActivity = () => {
+            const name = document.getElementById('logActivity').value;
+            const start = document.getElementById('logTime').value;
+            const cat = document.getElementById('logCategory').value;
+            const pts = parseFloat(document.getElementById('logPoints').value) || 0;
+            if(!name || !start) return;
+            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: pts, category: cat };
+            if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
+            else dailyLogs.push(obj);
+            allLogs[currentLogDate] = dailyLogs;
+            triggerConfetti(); renderLog(); window.closeLogEditor(); syncToCloud();
+        };
 
-            timeLeft = sMin * 60;
-            
-            document.getElementById('pomoStatus').textContent = "Listo para Empezar";
-            document.getElementById('startBtn').textContent = "▶️ Empezar";
-            pomoCard.classList.remove('mode-rest');
-            
-            updateDisplay(); renderDots();
+        window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
+
+        // --- POMODORO CON PIP Y BRAIN DUMP ---
+        
+        // Función Brain Dump global
+        window.saveBrainDump = () => {
+            localStorage.setItem(`procrastiBrainDump_${userId}`, getEl('brainDumpInput').value);
         };
 
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-            document.getElementById('timerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+            const tEl = getEl('timerDisplay');
+            if(tEl) tEl.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
         }
-
+        
         function renderDots() {
-            const container = document.getElementById('cycleDots');
-            const tot = parseInt(document.getElementById('totalCycles').value);
-            container.innerHTML = '';
+            const c = getEl('cycleDots');
+            const totalInp = getEl('totalCycles');
+            if(!c || !totalInp) return;
+            const tot = parseInt(totalInp.value);
+            c.innerHTML = '';
             for(let i=1; i<=tot; i++) {
                 const d = document.createElement('div');
                 d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
-                container.appendChild(d);
+                c.appendChild(d);
             }
-            document.getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
+            const cText = getEl('cycleText');
+            if(cText) cText.textContent = `Ciclo ${currentCycle} / ${tot}`;
         }
 
+        // Error 8 Corregido: Leer correctamente las cajas de texto en modo PIP
+        window.savePomoSettings = () => { 
+            if(getEl('studyMin')) localStorage.setItem(`pomoStudy_${userId}`, getEl('studyMin').value);
+            if(getEl('restMin')) localStorage.setItem(`pomoRest_${userId}`, getEl('restMin').value);
+            if(getEl('totalCycles')) localStorage.setItem(`pomoCycles_${userId}`, getEl('totalCycles').value);
+            window.resetTimer(); 
+        };
+
+        // Error 7 Corregido: Botones con busqueda dinámica getEl()
         window.toggleTimer = () => {
+            const btn = getEl('startBtn');
             if(isRunning) { 
                 clearInterval(timerId); isRunning = false; 
-                document.getElementById('startBtn').textContent = "▶️ Empezar"; 
+                if(btn) btn.textContent = "▶️ Reanudar"; 
                 document.body.classList.remove('deep-focus'); 
+                if(pipWindow) pipWindow.document.body.classList.remove('deep-focus');
             } else {
                 isRunning = true; 
-                document.getElementById('startBtn').textContent = "⏸️ Pausar"; 
+                if(btn) btn.textContent = "⏸️ Pausar"; 
                 document.body.classList.add('deep-focus');
+                if(pipWindow) pipWindow.document.body.classList.add('deep-focus');
                 timerId = setInterval(() => {
                     timeLeft--; updateDisplay();
                     if(timeLeft <= 0) handlePhaseEnd();
@@ -627,29 +742,79 @@
             }
         };
 
+        window.resetTimer = () => {
+            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; 
+            document.body.classList.remove('deep-focus');
+            if(pipWindow) pipWindow.document.body.classList.remove('deep-focus');
+            
+            const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
+            const rMin = localStorage.getItem(`pomoRest_${userId}`) || 5;
+            const cTot = localStorage.getItem(`pomoCycles_${userId}`) || 4;
+
+            if(getEl('studyMin')) getEl('studyMin').value = sMin;
+            if(getEl('restMin')) getEl('restMin').value = rMin;
+            if(getEl('totalCycles')) getEl('totalCycles').value = cTot;
+            
+            timeLeft = sMin * 60;
+            if(getEl('pomoStatus')) getEl('pomoStatus').textContent = "Listo para Empezar";
+            
+            const card = getEl('pomoCard');
+            if(card) card.classList.remove('mode-rest');
+            
+            const btn = getEl('startBtn');
+            if(btn) btn.textContent = "▶️ Empezar";
+            
+            updateDisplay(); renderDots();
+        };
+
         function handlePhaseEnd() {
-            clearInterval(timerId); isRunning = false;
+            clearInterval(timerId); isRunning = false; 
+            document.body.classList.remove('deep-focus');
+            if(pipWindow) pipWindow.document.body.classList.remove('deep-focus');
+
             playAlarm();
-            const tot = parseInt(document.getElementById('totalCycles').value);
+            const totalInp = getEl('totalCycles');
+            const total = totalInp ? parseInt(totalInp.value) : 4;
+            
             if(currentMode === 'study') {
-                if(currentCycle >= tot) { alert("¡Sesión completa!"); window.resetTimer(); return; }
-                currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "☕ Descanso";
-                pomoCard.classList.add('mode-rest');
-                notifyUser("Descanso", "Tómate un respiro.");
+                const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                if(activeTask) {
+                    if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
+                    allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                    syncToCloud(); window.renderLog();
+                }
+                if(currentCycle >= total) { alert("¡Sesión completa!"); window.resetTimer(); return; }
+                
+                currentMode = 'rest'; 
+                const rVal = getEl('restMin') ? getEl('restMin').value : 5;
+                timeLeft = rVal * 60;
+                
+                if(getEl('pomoStatus')) getEl('pomoStatus').textContent = "☕ Descanso";
+                const card = getEl('pomoCard');
+                if(card) card.classList.add('mode-rest');
             } else {
-                currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
-                document.getElementById('pomoStatus').textContent = "✍️ Estudio";
-                pomoCard.classList.remove('mode-rest');
-                notifyUser("A estudiar", "Regreso al enfoque.");
+                currentMode = 'study'; currentCycle++; 
+                const sVal = getEl('studyMin') ? getEl('studyMin').value : 25;
+                timeLeft = sVal * 60;
+                
+                if(getEl('pomoStatus')) getEl('pomoStatus').textContent = "✍️ Estudio";
+                const card = getEl('pomoCard');
+                if(card) card.classList.remove('mode-rest');
             }
             renderDots(); updateDisplay(); window.toggleTimer();
         }
 
+        // NUEVO: Implementación de PiP (Error 3, 5 y 6 corregidos)
         window.togglePiP = async () => {
             if (!('documentPictureInPicture' in window)) return alert("Usa Chrome/Edge para modo mini.");
             if (pipWindow) { pipWindow.close(); return; }
+            
+            const pomoCard = document.getElementById('pomoCard');
+            if(!pomoCard) return;
+
             pipWindow = await documentPictureInPicture.requestWindow({ width: 350, height: 380 });
+            
             [...document.styleSheets].forEach(ss => {
                 try {
                     const s = document.createElement('style');
@@ -660,9 +825,11 @@
                     pipWindow.document.head.appendChild(l);
                 }
             });
+            
             pipWindow.document.body.setAttribute('data-theme', currentTheme);
             pomoCard.classList.add('pip-mode');
             pipWindow.document.body.appendChild(pomoCard);
+            
             pipWindow.addEventListener("pagehide", () => {
                 pomoCard.classList.remove('pip-mode');
                 document.getElementById('pomodoroTab').appendChild(pomoCard);
@@ -670,43 +837,137 @@
             });
         };
 
+        function playSound(freq, duration) { const ctx = new (window.AudioContext || window.webkitAudioContext)(); const osc = ctx.createOscillator(), gain = ctx.createGain(); osc.connect(gain); gain.connect(ctx.destination); osc.frequency.value = freq; gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + duration); osc.start(); osc.stop(ctx.currentTime + duration); }
+        function playAlarm() { playSound(523.25, 1); setTimeout(() => playSound(659.25, 1), 200); }
+        function triggerConfetti() { confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } }); }
+
         window.renderChart = () => {
+            const rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
             const ctx = document.getElementById('historyChart').getContext('2d');
             let labels = [], data = [];
-            for(let i=6; i>=0; i--) {
-                const d = new Date(); d.setDate(d.getDate()-i);
-                const s = d.toISOString().split('T')[0];
-                labels.push(s.split('-')[2]); data.push(historyData[s] ? historyData[s].earned : 0);
+            if (rangeType === 7 || rangeType === 30) {
+                for(let i=rangeType-1; i>=0; i--) {
+                    const d = new Date(); d.setDate(d.getDate()-i);
+                    const s = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                    labels.push(s.split('-')[2] + '/' + s.split('-')[1]);
+                    data.push(historyData[s] ? historyData[s].earned : 0);
+                }
             }
             if(chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label: 'Pts', data, backgroundColor: '#d97706' }] } });
+            const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
+            chartInstance = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label: 'Puntos', data, backgroundColor: accentColor, borderRadius: 5 }] } });
+        };
+
+        window.renderPieChart = () => {
+            const ctxPie = document.getElementById('categoryPieChart').getContext('2d');
+            let catPoints = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
+            let hasData = false;
+            dailyLogs.forEach(t => { catPoints[t.category || 'work'] += parseFloat(t.points) || 0; hasData = true; });
+            const msgEl = document.getElementById('emptyPieMsg');
+            const canvasEl = document.getElementById('categoryPieChart');
+            if (!hasData) { msgEl.style.display = 'block'; canvasEl.style.display = 'none'; return; } 
+            else { msgEl.style.display = 'none'; canvasEl.style.display = 'block'; }
+            if(pieChartInstance) pieChartInstance.destroy();
+            const bgColors = [
+                getComputedStyle(document.documentElement).getPropertyValue('--cat-work').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-study').trim(),
+                getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
+                getComputedStyle(document.documentElement).getPropertyValue('--cat-chores').trim()
+            ];
+            pieChartInstance = new Chart(ctxPie, { type: 'doughnut', data: { labels: ['💼', '📚', '🍏', '🎮', '🏠'], datasets: [{ data: [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores], backgroundColor: bgColors }] } });
+        };
+
+        window.exportData = () => {
+            const data = { userSchedule, allLogs, historyData, totalXP, unlockedTrophies };
+            const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+            a.download = `ProcrastiNever_${userId}_Backup.json`; a.click();
+        };
+
+        window.importData = (event) => {
+            const file = event.target.files[0]; const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = JSON.parse(e.target.result);
+                userSchedule = data.userSchedule || []; allLogs = data.allLogs || {};
+                totalXP = data.totalXP || 0; unlockedTrophies = data.unlockedTrophies || {};
+                syncToCloud(); location.reload();
+            };
+            reader.readAsText(file);
         };
 
         function updateEmojiSelection(type) {
-            const sel = type === 'edit' ? selectedEmoji : logSelectedEmoji;
-            document.querySelectorAll(type === 'edit' ? '#emojiPicker .emoji-option' : '#logEmojiPicker .emoji-option').forEach(o => o.classList.toggle('selected', o.textContent === sel));
+            if(type === 'edit') document.querySelectorAll('#emojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === selectedEmoji));
+            if(type === 'log') document.querySelectorAll('#logEmojiPicker .emoji-option').forEach(opt => opt.classList.toggle('selected', opt.textContent === logSelectedEmoji));
         }
 
         function renderEmojiPickers() {
-            const p1 = document.getElementById('emojiPicker'), p2 = document.getElementById('logEmojiPicker');
+            const picker1 = document.getElementById('emojiPicker'); const picker2 = document.getElementById('logEmojiPicker');
             emojis.forEach(e => {
                 const s1 = document.createElement('span'); s1.className='emoji-option'; s1.textContent = e;
-                s1.onclick = () => { selectedEmoji = e; updateEmojiSelection('edit'); }; p1.appendChild(s1);
+                s1.onclick = () => { selectedEmoji = e; updateEmojiSelection('edit'); }; picker1.appendChild(s1);
                 const s2 = document.createElement('span'); s2.className='emoji-option'; s2.textContent = e;
-                s2.onclick = () => { logSelectedEmoji = e; updateEmojiSelection('log'); }; p2.appendChild(s2);
+                s2.onclick = () => { logSelectedEmoji = e; updateEmojiSelection('log'); }; picker2.appendChild(s2);
             });
         }
 
-        function updateClock() { document.getElementById('miniClock').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-        
-        // Inicialización
-        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers(); renderCollection(); renderSchedule(); renderLog(); 
-        window.resetTimer();
-        setInterval(updateClock, 1000); updateClock();
+        function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 
+        // NUEVO: Funcionalidad de seguridad del header (Error 10)
+        function updateGreeting() {
+            const h1 = document.querySelector('.header h1');
+            const welcome = document.getElementById('welcomeMessage');
+            const hour = new Date().getHours();
+            let salute = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+            
+            if (!params.get('user')) {
+                h1.textContent = "¿Qué haces aquí?";
+                if(welcome) welcome.textContent = "";
+            } else if (userId === 'tester' || userId === 'Invitado') {
+                h1.textContent = "🎴 ProcrastiNever";
+                if(welcome) welcome.textContent = "¡Hola, Aspirante!";
+            } else {
+                h1.textContent = "🎴 ProcrastiNever";
+                if(welcome) welcome.textContent = `¡${salute}, ${userId}!`;
+            }
+        }
+        
+        // --- 5. INICIALIZACIÓN ---
+        updateGreeting();
+        applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
+        renderCollection(); renderSchedule(); window.renderLog(); window.resetTimer();
+        
+        // Cargar Brain Dump guardado
+        const savedDump = localStorage.getItem(`procrastiBrainDump_${userId}`);
+        if(savedDump && getEl('brainDumpInput')) getEl('brainDumpInput').value = savedDump;
+
+        setInterval(updateClock, 1000); updateClock();
+        setInterval(() => { if(document.getElementById('scheduleTab').classList.contains('active')) renderSchedule(); }, 60000);
+
+        // --- 6. PWA INSTALL PROMPT ---
         let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; document.getElementById('installAppBtn').style.display = 'block'; });
-        document.getElementById('installAppBtn')?.addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); deferredPrompt = null; } });
+        const installBtn = document.getElementById('installAppBtn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            if(installBtn) installBtn.style.display = 'block';
+        });
+
+        if(installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log(`Respuesta a la instalación: ${outcome}`);
+                    deferredPrompt = null;
+                    installBtn.style.display = 'none';
+                }
+            });
+        }
+
+        window.addEventListener('appinstalled', () => {
+            if(installBtn) installBtn.style.display = 'none';
+            console.log('ProcrastiNever instalada exitosamente');
+        });
     </script>
 </body>
 </html>
