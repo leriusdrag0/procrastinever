@@ -143,6 +143,26 @@
         body.deep-focus .header, body.deep-focus .tabs { display: none !important; }
         body.deep-focus { padding-top: 10vh; }
 
+        /* PiP MODAL DE RESPALDO (cuando el navegador no soporta PiP nativo) */
+        #pipFallback {
+            display: none; position: fixed; bottom: 20px; right: 20px; z-index: 99998;
+            background: var(--color-card); border: 2px solid var(--color-accent);
+            border-radius: 20px; padding: 18px 20px; width: 260px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3); cursor: move;
+        }
+        #pipFallback.visible { display: block; }
+        #pipTimerDisplay { font-size: 3rem; font-weight: bold; color: var(--color-accent); text-align: center; font-family: monospace; }
+        #pipTimerDisplay.rest-mode { color: var(--color-success); }
+        #pipStatus { font-size: 0.8rem; text-align: center; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: bold; }
+        #pipCycleText { font-size: 0.75rem; text-align: center; color: var(--color-text-secondary); margin-bottom: 10px; }
+        #pipMindDump { width: 100%; min-height: 70px; resize: vertical; border-radius: 10px; border: 1px solid var(--color-border); background: var(--color-bg-primary); color: var(--color-text-primary); padding: 8px; font-size: 0.8rem; font-family: inherit; }
+        #pipCloseBtn { position: absolute; top: 8px; right: 10px; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--color-text-secondary); }
+        #pipDragHandle { text-align: center; font-size: 0.7rem; color: var(--color-text-secondary); margin-bottom: 6px; letter-spacing: 2px; cursor: move; }
+
+        /* CANVAS oculto para PiP nativo */
+        #pipCanvas { display: none; }
+        #pipVideo { display: none; }
+
         /* TOAST DE NOTIFICACIÓN */
         #toastNotification {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px);
@@ -215,6 +235,7 @@
             <div style="display:flex; gap:10px; justify-content:center;">
                 <button class="btn" id="startBtn" onclick="toggleTimer()">▶️ Empezar</button>
                 <button class="btn btn-outline" onclick="resetTimer()">🔄</button>
+                <button class="btn btn-outline" id="pipBtn" onclick="openPip()" title="Ventana flotante">🪟</button>
             </div>
             <div class="pomo-config" style="color: var(--color-text-primary);">
                 <div><label>Estudio</label><input type="number" id="studyMin" value="25" onchange="savePomoSettings()"></div>
@@ -262,6 +283,20 @@
     </div>
 
     <div id="toastNotification"></div>
+
+    <!-- PiP MODAL DE RESPALDO (arrastrable) -->
+    <div id="pipFallback">
+        <button id="pipCloseBtn" onclick="closePip()">✕</button>
+        <div id="pipDragHandle">· · · · ·</div>
+        <div id="pipStatus">✍️ Estudio</div>
+        <div id="pipTimerDisplay">25:00</div>
+        <div id="pipCycleText">Ciclo 1 / 4</div>
+        <textarea id="pipMindDump" placeholder="🧠 Mind dump — escribe aquí lo que se te venga a la mente..."></textarea>
+    </div>
+
+    <!-- Elementos ocultos para PiP nativo via Canvas -->
+    <canvas id="pipCanvas" width="400" height="300"></canvas>
+    <video id="pipVideo" muted playsinline></video>
 
     <div id="editModal" class="modal">
         <div class="modal-content">
@@ -668,7 +703,9 @@
         // --- POMODORO ESTÁNDAR ---
         function updateDisplay() {
             const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
-            document.getElementById('timerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+            const timeStr = `${m}:${s < 10 ? '0' : ''}${s}`;
+            document.getElementById('timerDisplay').textContent = timeStr;
+            updatePipDisplay(timeStr);
         }
         
         function renderDots() {
@@ -727,16 +764,189 @@
                     allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
                     syncToCloud(); renderLog();
                 }
-                if(currentCycle >= total) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); window.resetTimer(); return; }
+                if(currentCycle >= total) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
                 currentMode = 'rest'; timeLeft = document.getElementById('restMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "☕ Descanso";
                 document.getElementById('pomoCard').classList.add('mode-rest');
+                notifyPip("☕ ¡Hora del descanso!");
+                setPipMode('rest');
             } else {
                 currentMode = 'study'; currentCycle++; timeLeft = document.getElementById('studyMin').value * 60;
                 document.getElementById('pomoStatus').textContent = "✍️ Estudio";
                 document.getElementById('pomoCard').classList.remove('mode-rest');
+                notifyPip("✍️ ¡Nuevo ciclo de estudio!");
+                setPipMode('study');
             }
             renderDots(); updateDisplay(); window.toggleTimer();
+        }
+
+        // --- PiP (PICTURE IN PICTURE) ---
+        let pipNativeActive = false;
+        let pipCanvasInterval = null;
+
+        function updatePipDisplay(timeStr) {
+            // Actualiza modal de respaldo
+            const pipTimer = document.getElementById('pipTimerDisplay');
+            if(pipTimer) pipTimer.textContent = timeStr;
+            // Actualiza ciclo
+            const pipCycle = document.getElementById('pipCycleText');
+            if(pipCycle) {
+                const tot = document.getElementById('totalCycles').value;
+                pipCycle.textContent = `Ciclo ${currentCycle} / ${tot}`;
+            }
+            // Redibuja canvas para PiP nativo
+            if(pipNativeActive) drawPipCanvas(timeStr);
+        }
+
+        function setPipMode(mode) {
+            const pipTimer = document.getElementById('pipTimerDisplay');
+            const pipStatus = document.getElementById('pipStatus');
+            if(mode === 'rest') {
+                if(pipTimer) pipTimer.classList.add('rest-mode');
+                if(pipStatus) pipStatus.textContent = '☕ Descanso';
+            } else {
+                if(pipTimer) pipTimer.classList.remove('rest-mode');
+                if(pipStatus) pipStatus.textContent = '✍️ Estudio';
+            }
+        }
+
+        function notifyPip(msg) {
+            // Notificación del sistema si está permitida
+            if(Notification && Notification.permission === 'granted') {
+                new Notification('🍅 ProcrastiNever', { body: msg, icon: 'logo.png' });
+            }
+            // También muestra el toast dentro de la app
+            showToast(msg);
+        }
+
+        function drawPipCanvas(timeStr) {
+            const canvas = document.getElementById('pipCanvas');
+            if(!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const isRest = currentMode === 'rest';
+            // Fondo
+            ctx.fillStyle = isRest ? '#e8f5e9' : '#fffbf5';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            // Modo label
+            ctx.fillStyle = isRest ? '#16a34a' : '#8b5cf6';
+            ctx.font = 'bold 22px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(isRest ? '☕ Descanso' : '✍️ Estudio', canvas.width / 2, 55);
+            // Timer
+            ctx.fillStyle = isRest ? '#16a34a' : '#d97706';
+            ctx.font = 'bold 90px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(timeStr, canvas.width / 2, 170);
+            // Ciclo
+            const tot = document.getElementById('totalCycles').value;
+            ctx.fillStyle = '#8b6f47';
+            ctx.font = '18px sans-serif';
+            ctx.fillText(`Ciclo ${currentCycle} / ${tot}`, canvas.width / 2, 215);
+            // Mind dump label
+            ctx.fillStyle = '#8b6f47';
+            ctx.font = '14px sans-serif';
+            ctx.fillText('🧠 Mind dump activo en la app', canvas.width / 2, 260);
+        }
+
+        window.openPip = async () => {
+            // Pedir permiso de notificaciones si no se ha dado
+            if(Notification && Notification.permission === 'default') {
+                await Notification.requestPermission();
+            }
+
+            const video = document.getElementById('pipVideo');
+            const canvas = document.getElementById('pipCanvas');
+
+            // Intentar PiP nativo (Chrome/Edge escritorio)
+            if(document.pictureInPictureEnabled && video) {
+                try {
+                    const stream = canvas.captureStream(1);
+                    video.srcObject = stream;
+                    await video.play();
+                    await video.requestPictureInPicture();
+                    pipNativeActive = true;
+
+                    // Dibujar estado inicial
+                    const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+                    drawPipCanvas(`${m}:${s < 10 ? '0' : ''}${s}`);
+
+                    video.addEventListener('leavepictureinpicture', () => {
+                        pipNativeActive = false;
+                    }, { once: true });
+
+                    showToast('🪟 Ventana PiP abierta');
+                    return;
+                } catch(e) {
+                    console.warn('PiP nativo no disponible, usando modal:', e);
+                }
+            }
+
+            // Respaldo: modal flotante arrastrable
+            const pip = document.getElementById('pipFallback');
+            pip.classList.add('visible');
+            // Sincronizar estado actual
+            const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+            document.getElementById('pipTimerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
+            document.getElementById('pipStatus').textContent = currentMode === 'rest' ? '☕ Descanso' : '✍️ Estudio';
+            const tot = document.getElementById('totalCycles').value;
+            document.getElementById('pipCycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
+            setPipMode(currentMode);
+            showToast('🪟 Ventana flotante abierta');
+
+            // Hacer el modal arrastrable
+            makeDraggable(document.getElementById('pipFallback'), document.getElementById('pipDragHandle'));
+        };
+
+        window.closePip = () => {
+            // Cerrar PiP nativo
+            if(pipNativeActive && document.pictureInPictureElement) {
+                document.exitPictureInPicture();
+                pipNativeActive = false;
+            }
+            // Cerrar modal de respaldo
+            const pip = document.getElementById('pipFallback');
+            if(pip) pip.classList.remove('visible');
+        };
+
+        function makeDraggable(el, handle) {
+            let startX = 0, startY = 0, startLeft = 0, startTop = 0;
+            handle.addEventListener('mousedown', (e) => {
+                startX = e.clientX; startY = e.clientY;
+                const rect = el.getBoundingClientRect();
+                startLeft = rect.left; startTop = rect.top;
+                el.style.right = 'auto'; el.style.bottom = 'auto';
+                el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
+                function onMove(e) {
+                    el.style.left = (startLeft + e.clientX - startX) + 'px';
+                    el.style.top = (startTop + e.clientY - startY) + 'px';
+                }
+                function onUp() {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                }
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+            // Touch para móvil
+            handle.addEventListener('touchstart', (e) => {
+                const touch = e.touches[0];
+                startX = touch.clientX; startY = touch.clientY;
+                const rect = el.getBoundingClientRect();
+                startLeft = rect.left; startTop = rect.top;
+                el.style.right = 'auto'; el.style.bottom = 'auto';
+                el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
+                function onMove(e) {
+                    const t = e.touches[0];
+                    el.style.left = (startLeft + t.clientX - startX) + 'px';
+                    el.style.top = (startTop + t.clientY - startY) + 'px';
+                }
+                function onUp() {
+                    document.removeEventListener('touchmove', onMove);
+                    document.removeEventListener('touchend', onUp);
+                }
+                document.addEventListener('touchmove', onMove);
+                document.addEventListener('touchend', onUp);
+            });
         }
 
         function calcStreak() {
