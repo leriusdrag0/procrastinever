@@ -330,8 +330,8 @@
             </div>
             
             <div style="margin-bottom:15px; display: flex; justify-content: space-between; align-items: center;">
-                <label>Puntos:</label>
-                <input type="number" id="logPoints" value="1" step="0.1" style="width:70px;">
+                <label>Horas:</label>
+                <input type="number" id="logPoints" value="0.5" step="0.25" min="0.25" style="width:70px;">
             </div>
             
             <button class="btn" onclick="saveLogActivity()" style="width:100%;">Añadir Registro</button>
@@ -423,6 +423,7 @@
         let dailyLogs = allLogs[currentLogDate] || [];
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
+        let timerStartTime = null, timerStartTimeLeft = 0;
 
         const trophyData = [
             { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
@@ -584,7 +585,7 @@
             document.getElementById('progressBar').style.width = Math.min((cappedEarned / 10) * 100, 100) + '%';
             const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
             historyData[today] = { earned: Math.min(earned, 10), total };
-            checkTrophies(cappedEarned);
+            checkTrophies(totalXP);
         }
 
         window.selectLogDate = (dateStr) => {
@@ -604,16 +605,17 @@
             const container = document.getElementById('logContainer');
             if(!container) return;
             container.innerHTML = '';
-            let logTotalPts = 0;
+            let logTotalHrs = 0;
             dailyLogs.forEach((item, index) => {
-                logTotalPts += parseFloat(item.points) || 0;
+                const hrs = parseFloat(item.hours) || parseFloat(item.points) || 0;
+                logTotalHrs += hrs;
                 const catClass = `cat-border-${item.category || 'work'}`;
                 const tagClass = `tag-${item.category || 'work'}`;
                 const div = document.createElement('div');
                 div.className = `schedule-item ${catClass}`;
                 div.innerHTML = `
                     <div>
-                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span> • 🪙 ${(parseFloat(item.points)||0).toFixed(1)} pts</div>
+                        <div style="font-size:0.7rem; color:var(--color-text-secondary);">${item.time} <span class="category-tag ${tagClass}">${item.category || 'work'}</span> • ⏱️ ${hrs.toFixed(2)} h</div>
                         <div style="font-weight:bold;">${item.emoji} ${item.activity}</div>
                     </div>
                     <div class="action-icons">
@@ -625,8 +627,7 @@
             });
             const logScoreEl = document.getElementById('logScoreDisplay');
             if(logScoreEl) {
-                const capped = Math.min(logTotalPts, 10);
-                logScoreEl.textContent = `Total del día: ${capped.toFixed(1)} / 10 pts`;
+                logScoreEl.textContent = `Total del día: ${logTotalHrs.toFixed(2)} h registradas`;
             }
             if(document.getElementById('historyTab').classList.contains('active')) renderPieChart();
         }
@@ -691,7 +692,7 @@
             if(index >= 0) {
                 const t = dailyLogs[index];
                 document.getElementById('logActivity').value = t.activity;
-                document.getElementById('logPoints').value = t.points;
+                document.getElementById('logPoints').value = t.hours || t.points || 0.5;
                 document.getElementById('logTime').value = t.time;
                 document.getElementById('logCategory').value = t.category || 'work';
                 logSelectedEmoji = t.emoji;
@@ -709,13 +710,9 @@
             const name = document.getElementById('logActivity').value;
             const start = document.getElementById('logTime').value;
             const cat = document.getElementById('logCategory').value;
-            const pts = parseFloat(document.getElementById('logPoints').value) || 0;
+            const hrs = parseFloat(document.getElementById('logPoints').value) || 0;
             if(!name || !start) return;
-            const totalLogPts = dailyLogs.reduce((sum, t) => sum + (parseFloat(t.points) || 0), 0);
-            const alreadyEditing = logEditingIndex >= 0 ? (parseFloat(dailyLogs[logEditingIndex].points) || 0) : 0;
-            const available = 10 - totalLogPts + alreadyEditing;
-            const cappedPts = Math.min(pts, Math.max(available, 0));
-            const obj = { activity: name, time: start, emoji: logSelectedEmoji, points: cappedPts, category: cat };
+            const obj = { activity: name, time: start, emoji: logSelectedEmoji, hours: hrs, category: cat };
             if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
             else dailyLogs.push(obj);
             allLogs[currentLogDate] = dailyLogs;
@@ -755,14 +752,27 @@
         };
 
         window.toggleTimer = () => {
-            if(isRunning) { clearInterval(timerId); isRunning = false; getPomoDoc().getElementById('startBtn').textContent = "▶️ Reanudar"; document.body.classList.remove('deep-focus'); }
-            else {
-                isRunning = true; getPomoDoc().getElementById('startBtn').textContent = "⏸️ Pausar";
+            if(isRunning) {
+                clearInterval(timerId); isRunning = false;
+                // Calcular tiempo real restante al pausar
+                if(timerStartTime) {
+                    const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+                    timeLeft = Math.max(0, timerStartTimeLeft - elapsed);
+                }
+                getPomoDoc().getElementById('startBtn').textContent = "▶️ Reanudar";
+                document.body.classList.remove('deep-focus');
+            } else {
+                isRunning = true;
+                timerStartTime = Date.now();
+                timerStartTimeLeft = timeLeft;
+                getPomoDoc().getElementById('startBtn').textContent = "⏸️ Pausar";
                 if(!pipWindow) document.body.classList.add('deep-focus');
                 timerId = setInterval(() => {
-                    timeLeft--; updateDisplay();
-                    if(timeLeft <= 0) handlePhaseEnd();
-                }, 1000);
+                    const elapsed = Math.floor((Date.now() - timerStartTime) / 1000);
+                    timeLeft = Math.max(0, timerStartTimeLeft - elapsed);
+                    updateDisplay();
+                    if(timeLeft <= 0) { clearInterval(timerId); handlePhaseEnd(); }
+                }, 500);
             }
         };
 
@@ -932,11 +942,8 @@
             while(true) {
                 const dateStr = new Date(checking.getTime() - checking.getTimezoneOffset() * 60000).toISOString().split('T')[0];
                 const dayData = historyData[dateStr];
-                const dayLog = allLogs[dateStr];
                 const routinePts = dayData ? (dayData.earned || 0) : 0;
-                const logPts = dayLog ? dayLog.reduce((sum, t) => sum + (parseFloat(t.points) || 0), 0) : 0;
-                const totalDay = Math.min(routinePts + logPts, 10);
-                if(totalDay >= 3) {
+                if(routinePts >= 3) {
                     streak++;
                     checking.setDate(checking.getDate() - 1);
                 } else {
