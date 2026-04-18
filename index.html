@@ -134,15 +134,19 @@
         }
         #pipContainer.rest-mode { background: var(--color-rest); }
         #pipTimerDisplay {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-family: monospace;
             font-weight: bold;
             color: var(--color-accent);
             font-size: 10vmin;
             text-align: center;
-            line-height: 1.1;
+            line-height: 1;
             white-space: nowrap;
             overflow: hidden;
-            flex-shrink: 0;
+            min-height: 0;
         }
         #pipContainer.rest-mode #pipTimerDisplay { color: var(--color-success); }
         #pipMindDump {
@@ -158,7 +162,7 @@
             font-size: 2.5vmin;
             font-family: inherit;
             box-sizing: border-box;
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
         .streak-banner { background: linear-gradient(135deg, var(--color-accent-hover), var(--color-accent)); color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; margin-bottom: 20px; }
@@ -885,12 +889,14 @@
         const pomoCard = document.getElementById('pomoCard');
 
         function updatePipDisplay(timeStr) {
-            const pipTimer = document.getElementById('pipTimerDisplay');
+            const doc = (pipWindow && !pipWindow.closed) ? pipWindow.document : document;
+            const pipTimer = doc.getElementById('pipTimerDisplay');
             if(pipTimer) pipTimer.textContent = timeStr;
         }
 
         function setPipMode(mode) {
-            const pipContainer = document.getElementById('pipContainer');
+            const doc = (pipWindow && !pipWindow.closed) ? pipWindow.document : document;
+            const pipContainer = doc.getElementById('pipContainer');
             if(!pipContainer) return;
             if(mode === 'rest') pipContainer.classList.add('rest-mode');
             else pipContainer.classList.remove('rest-mode');
@@ -918,7 +924,7 @@
                 await Notification.requestPermission();
             }
 
-            pipWindow = await documentPictureInPicture.requestWindow({ width: 280, height: 320 });
+            pipWindow = await documentPictureInPicture.requestWindow({ width: 160, height: 280, disallowReturnToOpener: false });
 
             // Copiar estilos de la app al PiP
             [...document.styleSheets].forEach(ss => {
@@ -935,7 +941,7 @@
 
             // Aplicar tema y layout al body del PiP
             pipWindow.document.body.setAttribute('data-theme', currentTheme);
-            pipWindow.document.body.style.cssText = 'margin:0; padding:0; overflow:hidden; width:100vw; height:100vh; display:flex; flex-direction:column; background:var(--color-card);';
+            pipWindow.document.body.style.cssText = 'margin:0; padding:0; overflow:hidden; width:100vw; height:100vh; display:flex; flex-direction:column; background:var(--color-card); min-width:0;';
 
             // Mover pipContainer al PiP y mostrarlo
             const pipContainer = document.getElementById('pipContainer');
