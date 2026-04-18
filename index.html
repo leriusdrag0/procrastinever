@@ -122,19 +122,44 @@
         .pomo-config { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 25px; font-size: 0.75rem; }
         .pomo-config input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
 
-        /* MODO PiP: timer pequeño como el reloj del header, mind dump dominante */
-        .pip-mode { padding: 10px 14px !important; border-radius: 16px !important; display: flex !important; flex-direction: column !important; height: 100% !important; box-sizing: border-box !important; }
-        .pip-mode .timer-display { font-size: 0.95rem !important; margin: 2px 0 !important; font-family: monospace !important; display: inline !important; }
-        .pip-mode #pomoStatus { font-size: 0.75rem !important; margin-bottom: 0 !important; display: inline !important; }
-        .pip-mode #pipTopRow { display: flex !important; align-items: center !important; justify-content: center !important; gap: 8px !important; flex-wrap: wrap !important; margin-bottom: 4px !important; }
-        .pip-mode #cycleText { font-size: 0.7rem !important; margin-bottom: 4px !important; text-align: center !important; }
-        .pip-mode .cycle-dots { margin: 3px 0 !important; }
-        .pip-mode .dot { width: 6px !important; height: 6px !important; }
-        .pip-mode .btn { padding: 4px 8px !important; font-size: 0.72rem !important; }
-        .pip-mode .pomo-config { margin-top: 6px !important; font-size: 0.65rem !important; flex: 0 0 auto !important; }
-        .pip-mode .pomo-config input { padding: 3px !important; }
-        .pip-mode #mindDumpWrapper { margin-top: 8px !important; flex: 7 !important; display: flex !important; flex-direction: column !important; min-height: 0 !important; }
-        .pip-mode #pipMindDump { flex: 1 !important; min-height: 0 !important; height: 100% !important; font-size: 0.85rem !important; resize: none !important; }
+        /* MODO PiP: contenedor dedicado, timer escala con vmin */
+        #pipContainer {
+            display: none;
+            flex-direction: column;
+            width: 100%; height: 100vh;
+            padding: 4px;
+            box-sizing: border-box;
+            background: var(--color-card);
+            overflow: hidden;
+        }
+        #pipContainer.rest-mode { background: var(--color-rest); }
+        #pipTimerDisplay {
+            font-family: monospace;
+            font-weight: bold;
+            color: var(--color-accent);
+            font-size: 10vmin;
+            text-align: center;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        #pipContainer.rest-mode #pipTimerDisplay { color: var(--color-success); }
+        #pipMindDump {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+            resize: none;
+            border-radius: 6px;
+            border: 1px solid var(--color-border);
+            background: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            padding: 4px 6px;
+            font-size: 2.5vmin;
+            font-family: inherit;
+            box-sizing: border-box;
+            margin-top: 4px;
+        }
 
         .streak-banner { background: linear-gradient(135deg, var(--color-accent-hover), var(--color-accent)); color: white; padding: 15px; border-radius: 12px; text-align: center; font-weight: bold; margin-bottom: 20px; }
         .chart-container { background: var(--color-card); padding: 15px; border-radius: 12px; border: 1px solid var(--color-border); margin-bottom: 20px; }
@@ -277,6 +302,12 @@
     </div>
 
     <div id="toastNotification"></div>
+
+    <!-- Contenedor dedicado para PiP: solo timer + mind dump -->
+    <div id="pipContainer">
+        <div id="pipTimerDisplay">25:00</div>
+        <textarea id="pipMindDump" placeholder="🧠 Mind dump..."></textarea>
+    </div>
 
     <div id="editModal" class="modal">
         <div class="modal-content">
@@ -723,7 +754,7 @@
 
         // --- POMODORO ESTÁNDAR ---
         function getPomoDoc() {
-            return (pipWindow && !pipWindow.closed) ? pipWindow.document : document;
+            return document;
         }
 
         function updateDisplay() {
@@ -812,12 +843,14 @@
                     const totalStudyMinutes = studyMinutes * total;
                     const covers80 = activityDuration > 0 && (totalStudyMinutes / activityDuration) >= 0.8;
 
+                    const hoursWorked = parseFloat(((studyMinutes * total) / 60).toFixed(2));
+
                     if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
 
                     if(covers80) {
-                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
                     } else {
-                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, points: activeTask.points, category: activeTask.category });
+                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
                     }
 
                     if(!activeTask.done) {
@@ -851,25 +884,16 @@
         let pipWindow = null;
         const pomoCard = document.getElementById('pomoCard');
 
-        // Agrega el mind dump al pomoCard si no existe aún
-        if(!document.getElementById('pipMindDump')) {
-            const mindDumpWrapper = document.createElement('div');
-            mindDumpWrapper.id = 'mindDumpWrapper';
-            mindDumpWrapper.style.cssText = 'margin-top:18px; display:none;';
-            mindDumpWrapper.innerHTML = `
-                <div style="font-size:0.8rem; color:var(--color-text-secondary); margin-bottom:6px;">🧠 Mind dump</div>
-                <textarea id="pipMindDump" placeholder="Escribe lo que se te venga a la mente sin perder el foco..." style="width:100%; min-height:80px; resize:vertical; border-radius:10px; border:1px solid var(--color-border); background:var(--color-bg-primary); color:var(--color-text-primary); padding:8px; font-size:0.85rem; font-family:inherit;"></textarea>
-            `;
-            pomoCard.appendChild(mindDumpWrapper);
-        }
-
         function updatePipDisplay(timeStr) {
-            // El timer ya vive en el DOM real — no hace falta hacer nada extra,
-            // updateDisplay() ya actualizó #timerDisplay que está en pomoCard.
+            const pipTimer = document.getElementById('pipTimerDisplay');
+            if(pipTimer) pipTimer.textContent = timeStr;
         }
 
         function setPipMode(mode) {
-            // El modo ya se refleja en pomoCard vía las clases mode-rest existentes.
+            const pipContainer = document.getElementById('pipContainer');
+            if(!pipContainer) return;
+            if(mode === 'rest') pipContainer.classList.add('rest-mode');
+            else pipContainer.classList.remove('rest-mode');
         }
 
         function notifyPip(msg) {
@@ -885,7 +909,6 @@
                 return;
             }
 
-            // Si ya está abierto, cerrarlo
             if(pipWindow) {
                 pipWindow.close();
                 return;
@@ -895,44 +918,43 @@
                 await Notification.requestPermission();
             }
 
-            pipWindow = await documentPictureInPicture.requestWindow({ width: 360, height: 480 });
+            pipWindow = await documentPictureInPicture.requestWindow({ width: 280, height: 320 });
 
-            // Copiar todos los estilos de la app a la ventana PiP
+            // Copiar estilos de la app al PiP
             [...document.styleSheets].forEach(ss => {
                 try {
-                    const s = document.createElement('style');
+                    const s = pipWindow.document.createElement('style');
                     s.textContent = [...ss.cssRules].map(r => r.cssText).join('');
                     pipWindow.document.head.appendChild(s);
                 } catch(e) {
-                    const l = document.createElement('link');
+                    const l = pipWindow.document.createElement('link');
                     l.rel = 'stylesheet'; l.href = ss.href;
                     pipWindow.document.head.appendChild(l);
                 }
             });
 
-            // Aplicar el tema actual
+            // Aplicar tema y layout al body del PiP
             pipWindow.document.body.setAttribute('data-theme', currentTheme);
-            pipWindow.document.body.style.cssText = 'padding:20px; background:var(--color-bg-primary); display:flex; flex-direction:column; align-items:center;';
+            pipWindow.document.body.style.cssText = 'margin:0; padding:0; overflow:hidden; width:100vw; height:100vh; display:flex; flex-direction:column; background:var(--color-card);';
 
-            // Mostrar mind dump dentro del PiP
-            const mindDumpWrapper = document.getElementById('mindDumpWrapper');
-            if(mindDumpWrapper) mindDumpWrapper.style.display = 'block';
+            // Mover pipContainer al PiP y mostrarlo
+            const pipContainer = document.getElementById('pipContainer');
+            pipContainer.style.display = 'flex';
+            setPipMode(currentMode);
 
-            // Mover la tarjeta del pomodoro a la ventana PiP
-            pomoCard.classList.add('pip-mode');
-            pipWindow.document.body.appendChild(pomoCard);
+            // Sincronizar timer actual
+            const m = Math.floor(timeLeft / 60), s = timeLeft % 60;
+            document.getElementById('pipTimerDisplay').textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
 
-            // Cuando se cierre el PiP, devolver la tarjeta a la app
+            pipWindow.document.body.appendChild(pipContainer);
+
             pipWindow.addEventListener('pagehide', () => {
-                pomoCard.classList.remove('pip-mode');
-                if(mindDumpWrapper) mindDumpWrapper.style.display = 'none';
-                document.getElementById('pomodoroTab').appendChild(pomoCard);
+                pipContainer.style.display = 'none';
+                document.body.appendChild(pipContainer);
                 pipWindow = null;
-                document.getElementById('pipBtn').title = 'Abrir ventana flotante';
             });
 
-            document.getElementById('pipBtn').title = 'Cerrar ventana flotante';
-            showToast('🪟 PiP abierto — flota sobre todas las ventanas');
+            showToast('🪟 PiP abierto — redimensiona la ventana libremente');
         };
 
         function calcStreak() {
@@ -973,12 +995,19 @@
             const rangeType = parseInt(document.getElementById('chartTimeRange').value) || 7;
             const ctx = document.getElementById('historyChart').getContext('2d');
             let labels = [], data = [];
+
+            function getHoursForDate(dateStr) {
+                const dayLog = allLogs[dateStr];
+                if(!dayLog) return 0;
+                return dayLog.reduce((sum, t) => sum + (parseFloat(t.hours) || parseFloat(t.points) || 0), 0);
+            }
+
             if (rangeType === 7 || rangeType === 30) {
                 for(let i=rangeType-1; i>=0; i--) {
                     const d = new Date(); d.setDate(d.getDate()-i);
                     const s = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
                     labels.push(s.split('-')[2] + '/' + s.split('-')[1]);
-                    data.push(historyData[s] ? historyData[s].earned : 0);
+                    data.push(parseFloat(getHoursForDate(s).toFixed(2)));
                 }
             } else if (rangeType === 90) {
                 for(let w = 12; w >= 0; w--) {
@@ -986,37 +1015,37 @@
                     for(let d = 6; d >= 0; d--) {
                         const day = new Date(); day.setDate(day.getDate() - (w * 7 + d));
                         const s = new Date(day.getTime() - day.getTimezoneOffset() * 60000).toISOString().split('T')[0];
-                        weekTotal += historyData[s] ? historyData[s].earned : 0;
+                        weekTotal += getHoursForDate(s);
                     }
                     const refDay = new Date(); refDay.setDate(refDay.getDate() - w * 7);
                     labels.push('S' + refDay.toLocaleDateString('es', { day: '2-digit', month: '2-digit' }));
-                    data.push(parseFloat(weekTotal.toFixed(1)));
+                    data.push(parseFloat(weekTotal.toFixed(2)));
                 }
             } else if (rangeType === 365) {
                 for(let m = 11; m >= 0; m--) {
                     const ref = new Date(); ref.setMonth(ref.getMonth() - m);
                     const year = ref.getFullYear(); const month = ref.getMonth();
                     let monthTotal = 0;
-                    Object.keys(historyData).forEach(dateStr => {
+                    Object.keys(allLogs).forEach(dateStr => {
                         const d = new Date(dateStr + 'T12:00:00');
                         if(d.getFullYear() === year && d.getMonth() === month) {
-                            monthTotal += historyData[dateStr].earned || 0;
+                            monthTotal += getHoursForDate(dateStr);
                         }
                     });
                     labels.push(ref.toLocaleDateString('es', { month: 'short' }));
-                    data.push(parseFloat(monthTotal.toFixed(1)));
+                    data.push(parseFloat(monthTotal.toFixed(2)));
                 }
             }
             if(chartInstance) chartInstance.destroy();
             const accentColor = getComputedStyle(document.documentElement).getPropertyValue('--color-accent').trim();
-            chartInstance = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label: 'Puntos', data, backgroundColor: accentColor, borderRadius: 5 }] } });
+            chartInstance = new Chart(ctx, { type:'bar', data: { labels, datasets: [{ label: 'Horas', data, backgroundColor: accentColor, borderRadius: 5 }] } });
         };
 
         window.renderPieChart = () => {
             const ctxPie = document.getElementById('categoryPieChart').getContext('2d');
-            let catPoints = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
+            let catHours = { work: 0, study: 0, health: 0, leisure: 0, chores: 0 };
             let hasData = false;
-            dailyLogs.forEach(t => { catPoints[t.category || 'work'] += parseFloat(t.points) || 0; hasData = true; });
+            dailyLogs.forEach(t => { catHours[t.category || 'work'] += parseFloat(t.hours) || parseFloat(t.points) || 0; hasData = true; });
             const msgEl = document.getElementById('emptyPieMsg');
             const canvasEl = document.getElementById('categoryPieChart');
             if (!hasData) { msgEl.style.display = 'block'; canvasEl.style.display = 'none'; return; } 
@@ -1027,7 +1056,7 @@
                 getComputedStyle(document.documentElement).getPropertyValue('--cat-health').trim(), getComputedStyle(document.documentElement).getPropertyValue('--cat-leisure').trim(),
                 getComputedStyle(document.documentElement).getPropertyValue('--cat-chores').trim()
             ];
-            pieChartInstance = new Chart(ctxPie, { type: 'doughnut', data: { labels: ['💼', '📚', '🍏', '🎮', '🏠'], datasets: [{ data: [catPoints.work, catPoints.study, catPoints.health, catPoints.leisure, catPoints.chores], backgroundColor: bgColors }] } });
+            pieChartInstance = new Chart(ctxPie, { type: 'doughnut', data: { labels: ['💼', '📚', '🍏', '🎮', '🏠'], datasets: [{ data: [catHours.work, catHours.study, catHours.health, catHours.leisure, catHours.chores], backgroundColor: bgColors }] } });
         };
 
         window.exportData = () => {
