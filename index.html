@@ -119,8 +119,11 @@
         .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--color-surface); }
         .dot.active { background: var(--color-accent); transform: scale(1.2); }
         .dot.completed { background: var(--color-success); }
-        .pomo-config { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 25px; font-size: 0.75rem; }
-        .pomo-config input { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
+        .pomo-config { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 20px; font-size: 0.72rem; }
+        .pomo-config input { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
+        .pomo-config-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; font-size: 0.72rem; }
+        .pomo-config-row2 input { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
+        .pomo-block-badge { display: inline-block; background: var(--color-surface); border-radius: 8px; padding: 2px 10px; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px; }
 
         /* MODO PiP: contenedor dedicado, timer escala con vmin */
         #pipContainer {
@@ -253,17 +256,22 @@
         <div class="pomodoro-card" id="pomoCard">
             <h2 id="pomoStatus" style="color: var(--color-text-primary);">Listo para Empezar</h2>
             <div class="timer-display" id="timerDisplay">25:00</div>
+            <div id="blockBadge" class="pomo-block-badge">Bloque 1 / 2</div>
             <div class="cycle-dots" id="cycleDots"></div>
-            <p id="cycleText" style="font-weight: bold; margin-bottom: 15px; color: var(--color-text-primary);">Ciclo 1 / 4</p>
+            <p id="cycleText" style="font-weight: bold; margin-bottom: 15px; color: var(--color-text-primary);">Ronda 1 / 4</p>
             <div style="display:flex; gap:10px; justify-content:center;">
                 <button class="btn" id="startBtn" onclick="toggleTimer()">▶️ Empezar</button>
                 <button class="btn btn-outline" onclick="resetTimer()">🔄</button>
                 <button class="btn btn-outline" id="pipBtn" onclick="openPip()" title="Ventana flotante">🪟</button>
             </div>
             <div class="pomo-config" style="color: var(--color-text-primary);">
-                <div><label>Estudio</label><input type="number" id="studyMin" value="25" onchange="savePomoSettings()"></div>
-                <div><label>Descanso</label><input type="number" id="restMin" value="5" onchange="savePomoSettings()"></div>
-                <div><label>Ciclos</label><input type="number" id="totalCycles" value="4" onchange="savePomoSettings(); renderDots();"></div>
+                <div><label>🎯 Enfoque</label><input type="number" id="studyMin" value="25" min="1" onchange="savePomoSettings()"></div>
+                <div><label>☕ Pausa</label><input type="number" id="restMin" value="5" min="1" onchange="savePomoSettings()"></div>
+                <div><label>🔄 Rondas</label><input type="number" id="totalCycles" value="4" min="1" onchange="savePomoSettings(); renderDots();"></div>
+            </div>
+            <div class="pomo-config-row2" style="color: var(--color-text-primary);">
+                <div><label>📦 Bloques</label><input type="number" id="totalBlocks" value="2" min="1" onchange="savePomoSettings();"></div>
+                <div><label>🌿 Recuperación</label><input type="number" id="longRestMin" value="15" min="1" onchange="savePomoSettings()"></div>
             </div>
         </div>
     </div>
@@ -457,7 +465,7 @@
         let currentLogDate = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
         let dailyLogs = allLogs[currentLogDate] || [];
 
-        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1;
+        let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, currentBlock = 1;
         let timerStartTime = null, timerStartTimeLeft = 0;
 
         const trophyData = [
@@ -769,21 +777,37 @@
         }
         
         function renderDots() {
-            const c = getPomoDoc().getElementById('cycleDots'), tot = parseInt(getPomoDoc().getElementById('totalCycles').value);
+            const c = getPomoDoc().getElementById('cycleDots');
+            const tot = parseInt(getPomoDoc().getElementById('totalCycles').value);
+            const totBlocks = parseInt(getPomoDoc().getElementById('totalBlocks').value);
             c.innerHTML = '';
-            for(let i=1; i<=tot; i++) {
+            for(let i = 1; i <= tot; i++) {
                 const d = document.createElement('div');
                 d.className = `dot ${i < currentCycle ? 'completed' : (i == currentCycle ? 'active' : '')}`;
                 c.appendChild(d);
             }
-            getPomoDoc().getElementById('cycleText').textContent = `Ciclo ${currentCycle} / ${tot}`;
+            getPomoDoc().getElementById('cycleText').textContent = `Ronda ${currentCycle} / ${tot}`;
+            const badge = getPomoDoc().getElementById('blockBadge');
+            if(badge) badge.textContent = `Bloque ${currentBlock} / ${totBlocks}`;
         }
 
-        window.savePomoSettings = () => { 
+        window.savePomoSettings = () => {
+            const blocks = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
+            // Sugerir recuperación científicamente: 15 min base + 5 min por cada bloque adicional, máx 30
+            const suggested = Math.min(30, Math.max(15, blocks * 7));
+            const currentLong = parseInt(getPomoDoc().getElementById('longRestMin').value);
+            // Solo actualizar la sugerencia si el valor actual coincide con la sugerencia anterior
+            const prevBlocks = parseInt(localStorage.getItem(`pomoBlocks_${userId}`)) || 2;
+            const prevSuggested = Math.min(30, Math.max(15, prevBlocks * 7));
+            if(currentLong === prevSuggested || isNaN(currentLong)) {
+                getPomoDoc().getElementById('longRestMin').value = suggested;
+            }
             localStorage.setItem(`pomoStudy_${userId}`, getPomoDoc().getElementById('studyMin').value);
             localStorage.setItem(`pomoRest_${userId}`, getPomoDoc().getElementById('restMin').value);
             localStorage.setItem(`pomoCycles_${userId}`, getPomoDoc().getElementById('totalCycles').value);
-            window.resetTimer(); 
+            localStorage.setItem(`pomoBlocks_${userId}`, blocks);
+            localStorage.setItem(`pomoLongRest_${userId}`, getPomoDoc().getElementById('longRestMin').value);
+            window.resetTimer();
         };
 
         window.toggleTimer = () => {
@@ -812,13 +836,15 @@
         };
 
         window.resetTimer = () => {
-            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; document.body.classList.remove('deep-focus');
+            clearInterval(timerId); isRunning = false; currentMode = 'study'; currentCycle = 1; currentBlock = 1; document.body.classList.remove('deep-focus');
             
             const sMin = localStorage.getItem(`pomoStudy_${userId}`) || 25;
             getPomoDoc().getElementById('studyMin').value = sMin;
             getPomoDoc().getElementById('restMin').value = localStorage.getItem(`pomoRest_${userId}`) || 5;
             getPomoDoc().getElementById('totalCycles').value = localStorage.getItem(`pomoCycles_${userId}`) || 4;
-            
+            getPomoDoc().getElementById('totalBlocks').value = localStorage.getItem(`pomoBlocks_${userId}`) || 2;
+            getPomoDoc().getElementById('longRestMin').value = localStorage.getItem(`pomoLongRest_${userId}`) || 15;
+
             timeLeft = sMin * 60;
             getPomoDoc().getElementById('pomoStatus').textContent = "Listo para Empezar";
             getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
@@ -829,58 +855,87 @@
         function handlePhaseEnd() {
             clearInterval(timerId); isRunning = false; document.body.classList.remove('deep-focus');
             playAlarm();
-            const total = parseInt(getPomoDoc().getElementById('totalCycles').value);
+            const totalRounds = parseInt(getPomoDoc().getElementById('totalCycles').value);
+            const totalBlocksVal = parseInt(getPomoDoc().getElementById('totalBlocks').value);
+            const studyMinutes = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
+            const longRest = parseInt(getPomoDoc().getElementById('longRestMin').value) || 15;
+
             if(currentMode === 'study') {
-                const now = new Date(); const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-                const studyMinutes = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
+                const esUltimaRonda = currentCycle >= totalRounds;
+                const esUltimoBloque = currentBlock >= totalBlocksVal;
 
-                // Buscar actividad activa en rutina que coincida con el horario actual
-                const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
-
-                // Solo registrar en el log al terminar el ÚLTIMO ciclo
-                const esUltimoCiclo = currentCycle >= total;
-
-                if(esUltimoCiclo && activeTask) {
-                    const [startH, startM] = activeTask.time.split(':').map(Number);
-                    const [endH, endM] = activeTask.end.split(':').map(Number);
-                    const activityDuration = (endH * 60 + endM) - (startH * 60 + startM);
-                    const totalStudyMinutes = studyMinutes * total;
-                    const covers80 = activityDuration > 0 && (totalStudyMinutes / activityDuration) >= 0.8;
-
-                    const hoursWorked = parseFloat(((studyMinutes * total) / 60).toFixed(2));
-
-                    if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
-
-                    if(covers80) {
-                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
+                if(esUltimaRonda) {
+                    if(esUltimoBloque) {
+                        // ✅ FIN DE SESIÓN COMPLETA — registrar en log y terminar
+                        const now = new Date();
+                        const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+                        const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                        if(activeTask) {
+                            const [startH, startM] = activeTask.time.split(':').map(Number);
+                            const [endH, endM] = activeTask.end.split(':').map(Number);
+                            const activityDuration = (endH * 60 + endM) - (startH * 60 + startM);
+                            const totalStudyMinutes = studyMinutes * totalRounds * totalBlocksVal;
+                            const covers80 = activityDuration > 0 && (totalStudyMinutes / activityDuration) >= 0.8;
+                            const hoursWorked = parseFloat((studyMinutes * totalRounds * totalBlocksVal / 60).toFixed(2));
+                            if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
+                            if(covers80) {
+                                allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
+                            } else {
+                                allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
+                            }
+                            if(!activeTask.done) {
+                                const pts = parseFloat(activeTask.points) || 0;
+                                totalXP += pts;
+                                activeTask.done = true;
+                                renderSchedule(); updateLevelUI();
+                                showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
+                            }
+                            syncToCloud(); renderLog();
+                        }
+                        notifyPip("🎉 ¡Sesión completa! Todos los bloques finalizados.");
+                        showToast("🍅 ¡Sesión completa! Todos los bloques finalizados.");
+                        window.resetTimer();
+                        return;
                     } else {
-                        allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
+                        // ☕ FIN DE BLOQUE — descanso largo antes del siguiente bloque
+                        currentMode = 'longrest';
+                        timeLeft = longRest * 60;
+                        getPomoDoc().getElementById('pomoStatus').textContent = `🌿 Recuperación — Bloque ${currentBlock} completado`;
+                        getPomoDoc().getElementById('pomoCard').classList.add('mode-rest');
+                        notifyPip(`🌿 ¡Bloque ${currentBlock} completado! Recuperación de ${longRest} min.`);
+                        showToast(`🌿 ¡Bloque ${currentBlock} de ${totalBlocksVal} completado! Descansa ${longRest} min.`);
+                        setPipMode('rest');
                     }
-
-                    if(!activeTask.done) {
-                        const pts = parseFloat(activeTask.points) || 0;
-                        totalXP += pts;
-                        activeTask.done = true;
-                        renderSchedule(); updateLevelUI();
-                        showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
-                    }
-
-                    syncToCloud(); renderLog();
+                } else {
+                    // ☕ FIN DE RONDA — pausa corta
+                    currentMode = 'rest';
+                    timeLeft = getPomoDoc().getElementById('restMin').value * 60;
+                    getPomoDoc().getElementById('pomoStatus').textContent = "☕ Pausa corta";
+                    getPomoDoc().getElementById('pomoCard').classList.add('mode-rest');
+                    notifyPip(`☕ Pausa corta — Ronda ${currentCycle} de ${totalRounds} completada.`);
+                    setPipMode('rest');
                 }
-
-                if(esUltimoCiclo) { showToast("🍅 ¡Sesión Pomodoro completa! Buen trabajo."); notifyPip("🍅 ¡Sesión completa!"); window.resetTimer(); return; }
-                currentMode = 'rest'; timeLeft = getPomoDoc().getElementById('restMin').value * 60;
-                getPomoDoc().getElementById('pomoStatus').textContent = "☕ Descanso";
-                getPomoDoc().getElementById('pomoCard').classList.add('mode-rest');
-                notifyPip("☕ ¡Hora del descanso!");
-                setPipMode('rest');
-            } else {
-                currentMode = 'study'; currentCycle++; timeLeft = getPomoDoc().getElementById('studyMin').value * 60;
-                getPomoDoc().getElementById('pomoStatus').textContent = "✍️ Estudio";
+            } else if(currentMode === 'rest') {
+                // Siguiente ronda dentro del mismo bloque
+                currentCycle++;
+                currentMode = 'study';
+                timeLeft = getPomoDoc().getElementById('studyMin').value * 60;
+                getPomoDoc().getElementById('pomoStatus').textContent = `✍️ Enfoque — Ronda ${currentCycle}`;
                 getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
-                notifyPip("✍️ ¡Nuevo ciclo de estudio!");
+                notifyPip(`✍️ ¡A enfocarse! Ronda ${currentCycle} de ${totalRounds} — Bloque ${currentBlock}.`);
+                setPipMode('study');
+            } else if(currentMode === 'longrest') {
+                // Inicio de nuevo bloque
+                currentBlock++;
+                currentCycle = 1;
+                currentMode = 'study';
+                timeLeft = getPomoDoc().getElementById('studyMin').value * 60;
+                getPomoDoc().getElementById('pomoStatus').textContent = `✍️ Enfoque — Bloque ${currentBlock}`;
+                getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
+                notifyPip(`🚀 ¡Bloque ${currentBlock} de ${totalBlocksVal}! Primera ronda.`);
                 setPipMode('study');
             }
+
             renderDots(); updateDisplay(); window.toggleTimer();
         }
 
