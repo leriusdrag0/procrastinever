@@ -124,7 +124,10 @@
         .pomo-config-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; font-size: 0.72rem; }
         .pomo-config-row2 input { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
         .pomo-block-badge { display: inline-block; background: var(--color-surface); border-radius: 8px; padding: 2px 10px; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px; }
-        .pomo-endtime { font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 10px; text-align: center; font-style: italic; }
+        .pomo-endtime { font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 10px; text-align: center; font-style: italic; display: none; }
+        .pomo-mode-btn { padding: 6px 11px; background: var(--color-surface); border: 1.5px solid var(--color-border); border-radius: 20px; cursor: pointer; color: var(--color-text-secondary); font-size: 0.75rem; font-weight: bold; transition: 0.2s; }
+        .pomo-mode-btn.active { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+        .pomo-config input:disabled, .pomo-config-row2 input:disabled { opacity: 0.45; cursor: not-allowed; }
 
         /* MODO PiP: contenedor dedicado, timer escala con vmin */
         #pipContainer {
@@ -264,6 +267,12 @@
                 <button class="btn" id="startBtn" onclick="toggleTimer()">▶️ Empezar</button>
                 <button class="btn btn-outline" onclick="resetTimer()">🔄</button>
                 <button class="btn btn-outline" id="pipBtn" onclick="openPip()" title="Ventana flotante">🪟</button>
+            </div>
+            <div style="display:flex; gap:6px; justify-content:center; margin-top:16px; flex-wrap:wrap;">
+                <button class="pomo-mode-btn" id="modeNormal"        onclick="setPomoMode('normal')">⚡ Normal</button>
+                <button class="pomo-mode-btn" id="modeIntenso"       onclick="setPomoMode('intenso')">🔥 Intenso</button>
+                <button class="pomo-mode-btn" id="modeUltra"         onclick="setPomoMode('ultra')">💥 Ultra</button>
+                <button class="pomo-mode-btn" id="modePersonalizado" onclick="setPomoMode('personalizado')">⚙️ Personal</button>
             </div>
             <div class="pomo-config" style="color: var(--color-text-primary);">
                 <div><label>🎯 Enfoque</label><input type="number" id="studyMin" value="25" min="1" onchange="savePomoSettings()"></div>
@@ -469,6 +478,7 @@
 
         let timeLeft, timerId = null, isRunning = false, currentMode = 'study', currentCycle = 1, currentBlock = 1;
         let timerStartTime = null, timerStartTimeLeft = 0;
+        let currentPomoMode = 'personalizado';
 
         const trophyData = [
             { pts: 1, icon: '🥉', name: 'Primer Paso' }, { pts: 30, icon: '🥈', name: 'En Racha' },
@@ -793,7 +803,55 @@
             if(badge) badge.textContent = `Bloque ${currentBlock} / ${totBlocks}`;
         }
 
+        const POMO_PRESETS = {
+            normal:        { study: 25, rest: 5,  cycles: 4, blocks: 2, longRest: 15,
+                             info: 'Pomodoro clásico (Cirillo). Ideal para tareas cognitivas del día a día.' },
+            intenso:       { study: 50, rest: 10, cycles: 3, blocks: 2, longRest: 20,
+                             info: 'Ratio óptimo observado por Draugiem Group (52:17 redondeado). Para trabajo profundo.' },
+            ultra:         { study: 90, rest: 20, cycles: 2, blocks: 1, longRest: 30,
+                             info: 'Ciclo ultradiano de Kleitman. Máxima atención sostenida. Solo para sesiones de alta exigencia.' },
+            personalizado: { study: null, rest: null, cycles: null, blocks: null, longRest: null, info: '' }
+        };
+
+        window.setPomoMode = (mode) => {
+            currentPomoMode = mode;
+            localStorage.setItem(`pomoMode_${userId}`, mode);
+
+            document.querySelectorAll('.pomo-mode-btn').forEach(b => b.classList.remove('active'));
+            const btnId = 'mode' + mode.charAt(0).toUpperCase() + mode.slice(1);
+            const activeBtn = document.getElementById(btnId);
+            if(activeBtn) activeBtn.classList.add('active');
+
+            const isPersonal = mode === 'personalizado';
+            ['studyMin', 'restMin', 'totalCycles', 'totalBlocks', 'longRestMin'].forEach(id => {
+                const el = getPomoDoc().getElementById(id);
+                if(el) el.disabled = !isPersonal;
+            });
+
+            const endTimeEl = getPomoDoc().getElementById('pomoEndTime');
+            if(endTimeEl) endTimeEl.style.display = isPersonal ? 'block' : 'none';
+
+            if(!isPersonal) {
+                const p = POMO_PRESETS[mode];
+                getPomoDoc().getElementById('studyMin').value    = p.study;
+                getPomoDoc().getElementById('restMin').value     = p.rest;
+                getPomoDoc().getElementById('totalCycles').value = p.cycles;
+                getPomoDoc().getElementById('totalBlocks').value = p.blocks;
+                getPomoDoc().getElementById('longRestMin').value = p.longRest;
+                localStorage.setItem(`pomoStudy_${userId}`,    p.study);
+                localStorage.setItem(`pomoRest_${userId}`,     p.rest);
+                localStorage.setItem(`pomoCycles_${userId}`,   p.cycles);
+                localStorage.setItem(`pomoBlocks_${userId}`,   p.blocks);
+                localStorage.setItem(`pomoLongRest_${userId}`, p.longRest);
+                if(endTimeEl) endTimeEl.textContent = p.info;
+                if(endTimeEl) endTimeEl.style.display = 'block';
+            }
+
+            window.resetTimer();
+        };
+
         function calcEndTime() {
+            if(currentPomoMode !== 'personalizado') return;
             const studyMin = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
             const restMin  = parseInt(getPomoDoc().getElementById('restMin').value)  || 5;
             const cycles   = parseInt(getPomoDoc().getElementById('totalCycles').value) || 4;
@@ -811,6 +869,7 @@
         }
 
         window.savePomoSettings = () => {
+            if(currentPomoMode !== 'personalizado') return;
             const studyMin = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
             const blocks   = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
 
@@ -1187,7 +1246,8 @@
         
         // --- 5. INICIALIZACIÓN ---
         applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
-        renderCollection(); renderSchedule(); renderLog(); window.resetTimer();
+        renderCollection(); renderSchedule(); renderLog();
+        window.setPomoMode(localStorage.getItem(`pomoMode_${userId}`) || 'personalizado');
         
         const greetingElement = document.getElementById('welcomeMessage');
         if (greetingElement) {
