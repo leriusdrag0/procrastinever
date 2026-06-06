@@ -124,6 +124,7 @@
         .pomo-config-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; font-size: 0.72rem; }
         .pomo-config-row2 input { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--color-border); text-align: center; background: var(--color-bg-primary); color: var(--color-text-primary); }
         .pomo-block-badge { display: inline-block; background: var(--color-surface); border-radius: 8px; padding: 2px 10px; font-size: 0.75rem; color: var(--color-text-secondary); margin-bottom: 4px; }
+        .pomo-endtime { font-size: 0.78rem; color: var(--color-text-secondary); margin-top: 10px; text-align: center; font-style: italic; }
 
         /* MODO PiP: contenedor dedicado, timer escala con vmin */
         #pipContainer {
@@ -273,6 +274,7 @@
                 <div><label>📦 Bloques</label><input type="number" id="totalBlocks" value="2" min="1" onchange="savePomoSettings();"></div>
                 <div><label>🌿 Recuperación</label><input type="number" id="longRestMin" value="15" min="1" onchange="savePomoSettings()"></div>
             </div>
+            <div id="pomoEndTime" class="pomo-endtime"></div>
         </div>
     </div>
 
@@ -791,19 +793,47 @@
             if(badge) badge.textContent = `Bloque ${currentBlock} / ${totBlocks}`;
         }
 
+        function calcEndTime() {
+            const studyMin = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
+            const restMin  = parseInt(getPomoDoc().getElementById('restMin').value)  || 5;
+            const cycles   = parseInt(getPomoDoc().getElementById('totalCycles').value) || 4;
+            const blocks   = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
+            const longRest = parseInt(getPomoDoc().getElementById('longRestMin').value) || 15;
+            const totalMin = studyMin * cycles * blocks
+                           + restMin  * (cycles - 1) * blocks
+                           + longRest * (blocks - 1);
+            const end = new Date(Date.now() + totalMin * 60000);
+            const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const h = Math.floor(totalMin / 60), m = totalMin % 60;
+            const durStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
+            const el = getPomoDoc().getElementById('pomoEndTime');
+            if(el) el.textContent = `⏰ Terminarías ~${endStr} (${durStr} en total)`;
+        }
+
         window.savePomoSettings = () => {
-            const blocks = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
-            // Sugerir recuperación científicamente: 15 min base + 5 min por cada bloque adicional, máx 30
-            const suggested = Math.min(30, Math.max(15, blocks * 7));
-            const currentLong = parseInt(getPomoDoc().getElementById('longRestMin').value);
-            // Solo actualizar la sugerencia si el valor actual coincide con la sugerencia anterior
-            const prevBlocks = parseInt(localStorage.getItem(`pomoBlocks_${userId}`)) || 2;
-            const prevSuggested = Math.min(30, Math.max(15, prevBlocks * 7));
-            if(currentLong === prevSuggested || isNaN(currentLong)) {
-                getPomoDoc().getElementById('longRestMin').value = suggested;
+            const studyMin = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
+            const blocks   = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
+
+            // Auto-sugerir Pausa: 20% del Enfoque, mínimo 5 min (evidencia cognitiva)
+            const suggestedRest = Math.max(5, Math.round(studyMin * 0.2));
+            const prevStudy = parseInt(localStorage.getItem(`pomoStudy_${userId}`)) || 25;
+            const prevSuggestedRest = Math.max(5, Math.round(prevStudy * 0.2));
+            const currentRest = parseInt(getPomoDoc().getElementById('restMin').value);
+            if(currentRest === prevSuggestedRest || isNaN(currentRest)) {
+                getPomoDoc().getElementById('restMin').value = suggestedRest;
             }
+
+            // Auto-sugerir Recuperación: min(30, max(15, bloques×7))
+            const suggestedLong = Math.min(30, Math.max(15, blocks * 7));
+            const prevBlocks = parseInt(localStorage.getItem(`pomoBlocks_${userId}`)) || 2;
+            const prevSuggestedLong = Math.min(30, Math.max(15, prevBlocks * 7));
+            const currentLong = parseInt(getPomoDoc().getElementById('longRestMin').value);
+            if(currentLong === prevSuggestedLong || isNaN(currentLong)) {
+                getPomoDoc().getElementById('longRestMin').value = suggestedLong;
+            }
+
             localStorage.setItem(`pomoStudy_${userId}`, getPomoDoc().getElementById('studyMin').value);
-            localStorage.setItem(`pomoRest_${userId}`, getPomoDoc().getElementById('restMin').value);
+            localStorage.setItem(`pomoRest_${userId}`,  getPomoDoc().getElementById('restMin').value);
             localStorage.setItem(`pomoCycles_${userId}`, getPomoDoc().getElementById('totalCycles').value);
             localStorage.setItem(`pomoBlocks_${userId}`, blocks);
             localStorage.setItem(`pomoLongRest_${userId}`, getPomoDoc().getElementById('longRestMin').value);
@@ -849,7 +879,7 @@
             getPomoDoc().getElementById('pomoStatus').textContent = "Listo para Empezar";
             getPomoDoc().getElementById('pomoCard').classList.remove('mode-rest');
             getPomoDoc().getElementById('startBtn').textContent = "▶️ Empezar";
-            updateDisplay(); renderDots();
+            updateDisplay(); renderDots(); calcEndTime();
         };
 
         function handlePhaseEnd() {
