@@ -843,7 +843,10 @@
                 localStorage.setItem(`pomoCycles_${userId}`,   p.cycles);
                 localStorage.setItem(`pomoBlocks_${userId}`,   p.blocks);
                 localStorage.setItem(`pomoLongRest_${userId}`, p.longRest);
-                if(endTimeEl) endTimeEl.textContent = p.info;
+                const _tot = p.study*p.cycles*p.blocks + p.rest*(p.cycles-1)*p.blocks + p.longRest*(p.blocks-1);
+                const _end = new Date(Date.now() + _tot*60000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                const _h = Math.floor(_tot/60), _m = _tot%60;
+                if(endTimeEl) endTimeEl.textContent = `⏰ Terminarías ~${_end} (${_h>0?_h+'h ':''} ${_m}min) — ${p.info}`;
                 if(endTimeEl) endTimeEl.style.display = 'block';
             }
 
