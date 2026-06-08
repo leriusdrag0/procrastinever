@@ -829,7 +829,7 @@
             });
 
             const endTimeEl = getPomoDoc().getElementById('pomoEndTime');
-            if(endTimeEl) endTimeEl.style.display = isPersonal ? 'block' : 'none';
+            if(endTimeEl) endTimeEl.style.display = 'block';
 
             if(!isPersonal) {
                 const p = POMO_PRESETS[mode];
@@ -843,32 +843,55 @@
                 localStorage.setItem(`pomoCycles_${userId}`,   p.cycles);
                 localStorage.setItem(`pomoBlocks_${userId}`,   p.blocks);
                 localStorage.setItem(`pomoLongRest_${userId}`, p.longRest);
-                const _tot = p.study*p.cycles*p.blocks + p.rest*(p.cycles-1)*p.blocks + p.longRest*(p.blocks-1);
-                const _end = new Date(Date.now() + _tot*60000).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                const _h = Math.floor(_tot/60), _m = _tot%60;
-                if(endTimeEl) endTimeEl.textContent = `⏰ Terminarías ~${_end} (${_h>0?_h+'h ':''} ${_m}min) — ${p.info}`;
-                if(endTimeEl) endTimeEl.style.display = 'block';
             }
 
             window.resetTimer();
         };
 
+        function calcRemainingSeconds() {
+            const studySec    = (parseInt(getPomoDoc().getElementById('studyMin').value)    || 25) * 60;
+            const restSec     = (parseInt(getPomoDoc().getElementById('restMin').value)     || 5)  * 60;
+            const cycles      =  parseInt(getPomoDoc().getElementById('totalCycles').value) || 4;
+            const blocks      =  parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
+            const longRestSec = (parseInt(getPomoDoc().getElementById('longRestMin').value) || 15) * 60;
+            const fullBlock   = cycles * studySec + (cycles - 1) * restSec;
+            let remaining = timeLeft;
+
+            if(currentMode === 'study') {
+                const roundsLeft = cycles - currentCycle;
+                const blocksLeft = blocks - currentBlock;
+                remaining += roundsLeft * (restSec + studySec);
+                remaining += blocksLeft > 0 ? longRestSec : 0;
+                remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
+
+            } else if(currentMode === 'rest') {
+                const roundsLeft = cycles - (currentCycle + 1);
+                const blocksLeft = blocks - currentBlock;
+                remaining += studySec;
+                remaining += roundsLeft * (restSec + studySec);
+                remaining += blocksLeft > 0 ? longRestSec : 0;
+                remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
+
+            } else if(currentMode === 'longrest') {
+                const blocksLeft = blocks - currentBlock;
+                remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
+            }
+            return remaining;
+        }
+
         function calcEndTime() {
-            if(currentPomoMode !== 'personalizado') return;
-            const studyMin = parseInt(getPomoDoc().getElementById('studyMin').value) || 25;
-            const restMin  = parseInt(getPomoDoc().getElementById('restMin').value)  || 5;
-            const cycles   = parseInt(getPomoDoc().getElementById('totalCycles').value) || 4;
-            const blocks   = parseInt(getPomoDoc().getElementById('totalBlocks').value) || 2;
-            const longRest = parseInt(getPomoDoc().getElementById('longRestMin').value) || 15;
-            const totalMin = studyMin * cycles * blocks
-                           + restMin  * (cycles - 1) * blocks
-                           + longRest * (blocks - 1);
-            const end = new Date(Date.now() + totalMin * 60000);
+            const el = getPomoDoc().getElementById('pomoEndTime');
+            if(!el) return;
+            const remainingSec = calcRemainingSeconds();
+            const end = new Date(Date.now() + remainingSec * 1000);
             const endStr = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const totalMin = Math.round(remainingSec / 60);
             const h = Math.floor(totalMin / 60), m = totalMin % 60;
             const durStr = h > 0 ? `${h}h ${m}min` : `${m}min`;
-            const el = getPomoDoc().getElementById('pomoEndTime');
-            if(el) el.textContent = `⏰ Terminarías ~${endStr} (${durStr} en total)`;
+            const sessionActive = isRunning || currentCycle > 1 || currentBlock > 1 || currentMode !== 'study';
+            const label = sessionActive ? 'restantes' : 'en total';
+            el.textContent = `⏰ Terminas ~${endStr} (${durStr} ${label})`;
+            el.style.display = 'block';
         }
 
         window.savePomoSettings = () => {
@@ -912,6 +935,7 @@
                 }
                 getPomoDoc().getElementById('startBtn').textContent = "▶️ Reanudar";
                 document.body.classList.remove('deep-focus');
+                calcEndTime();
             } else {
                 isRunning = true;
                 timerStartTime = Date.now();
@@ -1245,7 +1269,13 @@
             });
         }
 
-        function updateClock() { const now = new Date(); document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        let _clockTick = 0;
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('miniClock').textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            _clockTick++;
+            if(_clockTick >= 60) { _clockTick = 0; calcEndTime(); }
+        }
         
         // --- 5. INICIALIZACIÓN ---
         applyTheme(currentTheme); updateLevelUI(); renderEmojiPickers();
