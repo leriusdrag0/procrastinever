@@ -166,7 +166,7 @@
             background: var(--color-bg-primary);
             color: var(--color-text-primary);
             padding: 4px 6px;
-            font-size: 10vmin;
+            font-size: clamp(14px, 4vmin, 20px);
             font-family: inherit;
             box-sizing: border-box;
             margin-top: 2px;
@@ -517,7 +517,8 @@
         // --- 3. SINCRONIZACIÓN CLOUD ---
         async function syncToCloud() {
             try {
-                const data = { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastUpdated: Date.now() };
+                const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                const data = { userSchedule, historyData, totalXP, unlockedTrophies, allLogs, currentTheme, lastActiveDate: today, lastUpdated: Date.now() };
                 await setDoc(userDocRef, data);
             } catch (e) { console.error("Error al sincronizar:", e); }
         }
@@ -525,17 +526,25 @@
         onSnapshot(userDocRef, (doc) => {
             if (doc.exists()) {
                 const cloud = doc.data();
+                const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+
                 userSchedule = cloud.userSchedule || [];
                 historyData = cloud.historyData || {};
                 totalXP = cloud.totalXP || 0;
                 unlockedTrophies = cloud.unlockedTrophies || {};
                 allLogs = cloud.allLogs || {};
+
+                // Reseteo automático de día: si el último uso fue otro día, limpiar tildeos
+                const lastActiveDate = cloud.lastActiveDate || today;
+                if(lastActiveDate !== today) {
+                    userSchedule.forEach(t => t.done = false);
+                    // No se sincronizan aún para no crear un bucle — la siguiente acción del usuario sincroniza
+                }
                 
                 if (cloud.currentTheme && cloud.currentTheme !== currentTheme) {
                     applyTheme(cloud.currentTheme);
                 }
 
-                // Guardado aislado
                 localStorage.setItem(`userSchedule_${userId}`, JSON.stringify(userSchedule));
                 localStorage.setItem(`totalXP_${userId}`, totalXP);
                 localStorage.setItem(`procrastiAllLogs_${userId}`, JSON.stringify(allLogs));
@@ -544,6 +553,9 @@
 
                 dailyLogs = allLogs[currentLogDate] || [];
                 renderSchedule(); updateLevelUI(); renderLog(); renderCollection();
+
+                // Si fue un nuevo día, sincronizar el reset a la nube
+                if(lastActiveDate !== today) { syncToCloud(); }
             }
         });
 
@@ -623,23 +635,53 @@
         window.toggleTask = (index) => {
             const task = userSchedule[index];
             const pts = parseFloat(task.points) || 0;
-            if (!task.done) { totalXP += pts; triggerConfetti(); playSound(800, 0.2); }
-            else { totalXP = Math.max(0, totalXP - pts); }
+            const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+            if (!task.done) {
+                totalXP += pts;
+                triggerConfetti();
+                playSound(800, 0.2);
+                // Calcular horas de duración de la actividad
+                let hrs = 0;
+                if(task.time && task.end) {
+                    const [sh, sm] = task.time.split(':').map(Number);
+                    const [eh, em] = task.end.split(':').map(Number);
+                    hrs = parseFloat(Math.max(0, (eh * 60 + em) - (sh * 60 + sm)) / 60).toFixed(2);
+                }
+                // Agregar al registro del día
+                if(!allLogs[today]) allLogs[today] = [];
+                allLogs[today].push({ activity: task.activity, time: currentTime, emoji: task.emoji, hours: parseFloat(hrs), category: task.category || 'work', points: pts, fromRutina: true });
+                if(today === currentLogDate) dailyLogs = allLogs[today];
+            } else {
+                totalXP = Math.max(0, totalXP - pts);
+                // Quitar del registro (la entrada más reciente de esta actividad fromRutina)
+                if(allLogs[today]) {
+                    const idx = allLogs[today].map((l,i) => ({l,i})).reverse().find(({l}) => l.fromRutina && l.activity === task.activity);
+                    if(idx !== undefined) allLogs[today].splice(idx.i, 1);
+                    if(today === currentLogDate) dailyLogs = allLogs[today];
+                }
+            }
             task.done = !task.done;
-            renderSchedule(); updateLevelUI(); syncToCloud();
+            renderSchedule(); updateLevelUI(); renderLog(); syncToCloud();
         };
 
         function updateScore() {
             let earned = 0, total = 0;
+            const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
             userSchedule.forEach(t => { 
                 total += parseFloat(t.points); 
                 if(t.done) earned += parseFloat(t.points); 
             });
+            // Sumar puntos de extras registrados manualmente hoy
+            (allLogs[today] || []).forEach(l => {
+                if(l.isExtra && (parseFloat(l.points) || 0) > 0) earned += parseFloat(l.points) || 0;
+            });
             const cappedEarned = Math.min(earned, 10);
             document.getElementById('scoreDisplay').textContent = `${cappedEarned.toFixed(1)} / 10`;
             document.getElementById('progressBar').style.width = Math.min((cappedEarned / 10) * 100, 100) + '%';
-            const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
-            historyData[today] = { earned: Math.min(earned, 10), total };
+            historyData[today] = { earned: cappedEarned, total };
             checkTrophies(totalXP);
         }
 
@@ -767,11 +809,13 @@
             const cat = document.getElementById('logCategory').value;
             const hrs = parseFloat(document.getElementById('logPoints').value) || 0;
             if(!name || !start) return;
-            const obj = { activity: name, time: start, emoji: logSelectedEmoji, hours: hrs, category: cat };
+            // Los extras aportan sus horas como puntos al header (con el mismo cap de 10)
+            const obj = { activity: name, time: start, emoji: logSelectedEmoji, hours: hrs, points: hrs, category: cat, isExtra: true };
             if(logEditingIndex >= 0) dailyLogs[logEditingIndex] = obj;
             else dailyLogs.push(obj);
             allLogs[currentLogDate] = dailyLogs;
-            triggerConfetti(); renderLog(); window.closeLogEditor(); syncToCloud();
+            triggerConfetti(); renderLog(); window.closeLogEditor();
+            updateScore(); syncToCloud();
         };
 
         window.deleteLogActivity = (index) => { dailyLogs.splice(index, 1); allLogs[currentLogDate] = dailyLogs; renderLog(); syncToCloud(); };
@@ -856,14 +900,12 @@
             const longRestSec = (parseInt(getPomoDoc().getElementById('longRestMin').value) || 15) * 60;
             const fullBlock   = cycles * studySec + (cycles - 1) * restSec;
             let remaining = timeLeft;
-
             if(currentMode === 'study') {
                 const roundsLeft = cycles - currentCycle;
                 const blocksLeft = blocks - currentBlock;
                 remaining += roundsLeft * (restSec + studySec);
                 remaining += blocksLeft > 0 ? longRestSec : 0;
                 remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
-
             } else if(currentMode === 'rest') {
                 const roundsLeft = cycles - (currentCycle + 1);
                 const blocksLeft = blocks - currentBlock;
@@ -871,7 +913,6 @@
                 remaining += roundsLeft * (restSec + studySec);
                 remaining += blocksLeft > 0 ? longRestSec : 0;
                 remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
-
             } else if(currentMode === 'longrest') {
                 const blocksLeft = blocks - currentBlock;
                 remaining += blocksLeft * fullBlock + Math.max(0, blocksLeft - 1) * longRestSec;
@@ -985,7 +1026,15 @@
                         // ✅ FIN DE SESIÓN COMPLETA — registrar en log y terminar
                         const now = new Date();
                         const currentTime = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-                        const activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end);
+                        // Buscar tarea activa: primero en ventana exacta, luego la más reciente que haya iniciado
+                        let activeTask = userSchedule.find(t => t.time && t.end && currentTime >= t.time && currentTime <= t.end && !t.done);
+                        if(!activeTask) {
+                            const started = userSchedule.filter(t => t.time && t.time <= currentTime && !t.done);
+                            if(started.length > 0) {
+                                started.sort((a, b) => b.time.localeCompare(a.time));
+                                activeTask = started[0];
+                            }
+                        }
                         if(activeTask) {
                             const [startH, startM] = activeTask.time.split(':').map(Number);
                             const [endH, endM] = activeTask.end.split(':').map(Number);
@@ -994,16 +1043,14 @@
                             const covers80 = activityDuration > 0 && (totalStudyMinutes / activityDuration) >= 0.8;
                             const hoursWorked = parseFloat((studyMinutes * totalRounds * totalBlocksVal / 60).toFixed(2));
                             if(!allLogs[currentLogDate]) allLogs[currentLogDate] = [];
-                            if(covers80) {
-                                allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo ✓)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
-                            } else {
-                                allLogs[currentLogDate].push({ activity: activeTask.activity + " (Pomo)", time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category });
-                            }
+                            const label = covers80 ? " (Pomo ✓)" : " (Pomo)";
+                            allLogs[currentLogDate].push({ activity: activeTask.activity + label, time: currentTime, emoji: activeTask.emoji, hours: hoursWorked, category: activeTask.category, points: parseFloat(activeTask.points) || 0, fromRutina: true });
+                            if(currentLogDate === new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]) dailyLogs = allLogs[currentLogDate];
                             if(!activeTask.done) {
                                 const pts = parseFloat(activeTask.points) || 0;
                                 totalXP += pts;
                                 activeTask.done = true;
-                                renderSchedule(); updateLevelUI();
+                                renderSchedule(); updateLevelUI(); updateScore();
                                 showToast(`✅ "${activeTask.activity}" marcada como completada en Rutina`);
                             }
                             syncToCloud(); renderLog();
@@ -1113,6 +1160,11 @@
             // Aplicar tema y layout al body del PiP
             pipWindow.document.body.setAttribute('data-theme', currentTheme);
             pipWindow.document.body.style.cssText = 'margin:0; padding:0; overflow:hidden; width:100vw; height:100vh; display:flex; flex-direction:column; background:var(--color-card); min-width:0;';
+            pipWindow.document.title = 'ProcrastiNever';
+            const pipFavicon = pipWindow.document.createElement('link');
+            pipFavicon.rel = 'icon'; pipFavicon.type = 'image/png';
+            pipFavicon.href = new URL('logo.png', document.baseURI).href;
+            pipWindow.document.head.appendChild(pipFavicon);
 
             // Mover pipContainer al PiP y mostrarlo
             const pipContainer = document.getElementById('pipContainer');
