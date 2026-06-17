@@ -130,6 +130,7 @@
 
     <div id="toastNotification"></div>
 
+    <!-- Contenedor dedicado para PiP: solo timer + mind dump -->
     <div id="pipContainer">
         <div id="pipTimerDisplay">25:00</div>
         <textarea id="pipMindDump" placeholder="🧠 Mind dump..."></textarea>
@@ -141,13 +142,7 @@
             <div class="emoji-picker" id="emojiPicker"></div>
             
             <label style="font-size:0.8rem;">Categoría:</label>
-            <select id="editCategory">
-                <option value="work">💼 Trabajo</option>
-                <option value="study">📚 Estudio</option>
-                <option value="health">🍏 Salud / Deporte</option>
-                <option value="leisure">🎮 Ocio</option>
-                <option value="chores">🏠 Hogar</option>
-            </select>
+            <select id="editCategory"></select>
 
             <input type="text" id="editActivity" placeholder="¿Qué vas a hacer?">
             
@@ -172,13 +167,7 @@
             <div class="emoji-picker" id="logEmojiPicker"></div>
             
             <label style="font-size:0.8rem;">Categoría de la actividad:</label>
-            <select id="logCategory">
-                <option value="work">💼 Trabajo</option>
-                <option value="study">📚 Estudio</option>
-                <option value="health">🍏 Salud / Deporte</option>
-                <option value="leisure">🎮 Ocio</option>
-                <option value="chores">🏠 Hogar</option>
-            </select>
+            <select id="logCategory"></select>
 
             <input type="text" id="logActivity" placeholder="Ej: Leer 10 páginas, Ejercicio...">
             
