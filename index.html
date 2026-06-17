@@ -130,10 +130,22 @@
 
     <div id="toastNotification"></div>
 
-    <!-- Contenedor dedicado para PiP: solo timer + mind dump -->
     <div id="pipContainer">
         <div id="pipTimerDisplay">25:00</div>
         <textarea id="pipMindDump" placeholder="🧠 Mind dump..."></textarea>
+    </div>
+
+    <!-- MODAL CATEGORÍAS (Nuevo) -->
+    <div id="categoryModal" class="modal">
+        <div class="modal-content">
+            <h3>Categorías</h3>
+            <div style="display: flex; gap: 5px; margin-bottom: 15px;">
+                <input type="text" id="newCategoryInput" placeholder="Ej: 🩺 Anestesia" style="flex: 1;">
+                <button class="btn" onclick="addCategory()">+</button>
+            </div>
+            <div id="categoryListContainer" style="margin-bottom: 15px; max-height: 200px; overflow-y: auto;"></div>
+            <button class="btn btn-outline" onclick="closeCategoryModal()" style="width:100%;">Cerrar</button>
+        </div>
     </div>
 
     <div id="editModal" class="modal">
@@ -141,7 +153,10 @@
             <h3>Configurar Tarea de Rutina</h3>
             <div class="emoji-picker" id="emojiPicker"></div>
             
-            <label style="font-size:0.8rem;">Categoría:</label>
+            <label style="font-size:0.8rem; display: flex; justify-content: space-between; align-items: center;">
+                Categoría:
+                <button onclick="openCategoryModal()" style="border:none; background:none; cursor:pointer;" title="Gestionar categorías">⚙️</button>
+            </label>
             <select id="editCategory"></select>
 
             <input type="text" id="editActivity" placeholder="¿Qué vas a hacer?">
