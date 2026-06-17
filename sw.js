@@ -1,6 +1,8 @@
-const CACHE_NAME = 'procrastinever-v1.1';
+const CACHE_NAME = 'procrastinever-v1.2'; // Incrementado a v1.2 para forzar la actualización
 const ASSETS = [
   './index.html',
+  './style.css',
+  './script.js',
   './manifest.json',
   './logo.png'
 ];
@@ -59,7 +61,7 @@ self.addEventListener('push', function(event) {
     );
 });
 
-// 5. CLICK EN NOTIFICACIÓN: Abre la app o la trae al frente en GitHub Pages
+// 5. CLICK EN NOTIFICACIÓN: Abre la app o la trae al frente
 self.addEventListener('notificationclick', function(event) {
     event.notification.close();
     event.waitUntil(
